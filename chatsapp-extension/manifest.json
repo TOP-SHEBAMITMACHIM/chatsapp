@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "ChatsApp – וואטסאפ לגוגל צ'אט",
+  "short_name": "ChatsApp",
+  "version": "1.0.0",
+  "version_name": "v1.0",
+  "description": "גוגל צ'אט בעיצוב וואטסאפ: בועות ירוקות/לבנות עם זנב, שעה ו-VV בתוך הבועה, ציטוטים, מסגרות לתמונות ורקע הוואטסאפ המקורי",
+  "minimum_chrome_version": "111",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chat.google.com/*",
+        "https://mail.google.com/chat/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle",
+      "world": "MAIN"
+    }
+  ]
+}
