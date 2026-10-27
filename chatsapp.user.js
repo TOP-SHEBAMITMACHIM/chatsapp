@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ChatsApp – וואטסאפ לגוגל צ'אט
 // @namespace    chatsapp
-// @version      1.0.1
+// @version      1.0.2
 // @description  גוגל צ'אט בעיצוב וואטסאפ: בועות ירוקות/לבנות עם זנב, שעה ו-VV בתוך הבועה, ציטוטים, מסגרות לתמונות ורקע הוואטסאפ המקורי
 // @homepageURL  https://github.com/TOP-SHEBAMITMACHIM/chatsapp
 // @downloadURL  https://raw.githubusercontent.com/TOP-SHEBAMITMACHIM/chatsapp/main/chatsapp.user.js
@@ -10,12 +10,14 @@
 // @match        https://mail.google.com/chat/*
 // @run-at       document-idle
 // @grant        none
+// @sandbox      raw
+// @inject-into  page
 // ==/UserScript==
 
 (function () {
   'use strict';
 
-  const VERSION = '1.0.1';
+  const VERSION = '1.0.2';
   const W = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
   if (W.waStop) { try { W.waStop(); } catch (e) {} }
 
@@ -548,6 +550,7 @@
     isRtl = getComputedStyle(document.body || root).direction === 'rtl';
     setAttr(root, 'data-wa-ticks', TICKS_LAYOUT);
     setAttr(root, 'data-wa-rtl', String(isRtl));
+    setAttr(root, 'data-chatsapp-version', VERSION);   // לאבחון: איזו גרסה רצה בפועל (נראה מכל קונסול)
   }
 
   // בסרגל העליון הטקסט הופך ללבן, אבל לתיבת החיפוש ולכפתור הסטטוס יש רקע לבן משלהם - הם הופכים לשקופים-בהירים
@@ -1138,7 +1141,7 @@
       if (x.hasAttribute('data-wa-fit')) { x.removeAttribute('data-wa-fit'); ['margin-left', 'margin-right', 'margin-top'].forEach((p) => x.style.removeProperty(p)); }
     });
     if (styleEl && styleEl.remove) styleEl.remove();
-    ['data-wa-rtl', 'data-wa-ticks', 'data-wa-bg'].forEach((a) => document.documentElement.removeAttribute(a));
+    ['data-wa-rtl', 'data-wa-ticks', 'data-wa-bg', 'data-chatsapp-version'].forEach((a) => document.documentElement.removeAttribute(a));
     delete W.waDebug; delete W.waExport; delete W.waSeen; delete W.waGroups; delete W.waQuote; delete W.waTime; delete W.waBg; delete W.waSpeed; delete W.waBox; delete W.waStop;
   };
 })();
