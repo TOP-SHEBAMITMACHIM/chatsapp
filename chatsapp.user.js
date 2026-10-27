@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ChatsApp – וואטסאפ לגוגל צ'אט
 // @namespace    chatsapp
-// @version      1.2.0
+// @version      1.2.1
 // @description  גוגל צ'אט בעיצוב וואטסאפ: בועות ירוקות/לבנות עם זנב, שעה ו-VV בתוך הבועה, ציטוטים, מסגרות לתמונות ורקע הוואטסאפ המקורי
 // @homepageURL  https://github.com/TOP-SHEBAMITMACHIM/chatsapp
 // @downloadURL  https://raw.githubusercontent.com/TOP-SHEBAMITMACHIM/chatsapp/main/chatsapp.user.js
@@ -18,7 +18,7 @@
   chatsappMain();
 
   function chatsappMain() {
-  const VERSION = '1.2.0';
+  const VERSION = '1.2.1';
   const W = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
   if (W.waStop) { try { W.waStop(); } catch (e) {} }
 
@@ -33,7 +33,7 @@
   const TICKS_LAYOUT = 'bubble-start';
   const BG_WIDTH = 380;          // רוחב אריח הרקע בפיקסלים (קטן = דוגמה צפופה יותר)
   const MAX_BUBBLE = 520;        // רוחב מקסימלי של בועה
-  const TAIL_W = 11, TAIL_H = 15; // גודל הזנב (פיקסלים)
+  const TAIL_W = 10, TAIL_H = 16; // גודל הזנב (פיקסלים)
   const TICK_SENT = '#8696a0';   // וי וי אפורים: נשלח
   const TICK_READ = '#53bdeb';   // וי וי כחולים: נקרא
   const TICKS_SHIFT_LEFT = 6;    // (הודעות מדיה בלבד) הזזת הוי וי שמאלה
@@ -64,16 +64,26 @@
   // זנב הבועה: הצד נקבע לפי כיוון הממשק. בעברית (RTL) ההודעות שלי משמאל והנכנסות מימין; באנגלית להפך.
   const TAIL_BASE = '.wa-bubble[data-wa-tail="true"]';
   const tailSide = (rtl, own) => (own === rtl ? 'left' : 'right');          // RTL: שלי=שמאל, אחרים=ימין. LTR: להפך
+  // הצורה: הזנב המעוקל של וואטסאפ (קצה מעוגל למעלה וקו מתעקל אל הבועה), מצויר כמסכה בצבע הבועה.
+  // "R" = הזנב יוצא מימין לבועה (מחובר בצד שמאל שלו), "L" = יוצא משמאל (מחובר בצד ימין שלו)
+  const tailMask = (d) => 'url("data:image/svg+xml,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 13"><path d="' + d + '"/></svg>') + '")';
+  const TAIL_R = tailMask('M6.467 2.568 0 11.193V0h5.188c1.77 0 2.338 1.156 1.279 2.568z');
+  const TAIL_L = tailMask('M1.533 2.568 8 11.193V0H2.812C1.042 0 .474 1.156 1.533 2.568z');
   const tailCss = [true, false].map((rtl) => [true, false].map((own) => {
     const root = rtl ? 'html[data-wa-rtl="true"]' : 'html:not([data-wa-rtl="true"])';
     const sel = root + ' ' + TAIL_BASE + '[data-wa-own="' + own + '"]';
     const side = tailSide(rtl, own), color = own ? 'var(--wa-out)' : 'var(--wa-in)';
-    const shape = side === 'right'
-      ? 'right:-' + TAIL_W + 'px;border-width:0 0 ' + TAIL_H + 'px ' + TAIL_W + 'px;border-color:transparent transparent transparent ' + color + ';'
-      : 'left:-' + TAIL_W + 'px;border-width:0 ' + TAIL_W + 'px ' + TAIL_H + 'px 0;border-color:transparent ' + color + ' transparent transparent;';
+    const mask = side === 'right' ? TAIL_R : TAIL_L;
+    const other = side === 'right' ? 'left' : 'right';
+    const shape = side + ':-' + (TAIL_W - 1) + 'px !important;' + other + ':auto !important;background:' + color + ' !important;' +
+      '-webkit-mask:' + mask + ' no-repeat 0 0/100% 100% !important;mask:' + mask + ' no-repeat 0 0/100% 100% !important;';
     return sel + '{border-top-' + side + '-radius:0 !important;}\n  ' + sel + '::after{' + shape + '}';
   }).join('\n  ')).join('\n  ') +
-  '\n  ' + TAIL_BASE + '::after{content:"";position:absolute;top:0;width:0;height:0;border-style:solid;pointer-events:none;}';
+  // גוגל משתמשת בעצמה ב-::after של הבועה (אפקט מעבר עכבר, שקוף כברירת מחדל) - לכן כל המאפיינים כאן עם !important
+  '\n  ' + TAIL_BASE + '::after{content:"" !important;display:block !important;position:absolute !important;top:0 !important;bottom:auto !important;' +
+  'width:' + TAIL_W + 'px !important;height:' + TAIL_H + 'px !important;opacity:1 !important;visibility:visible !important;transform:none !important;' +
+  'border:0 !important;border-radius:0 !important;box-shadow:none !important;background-image:none !important;transition:none !important;pointer-events:none;}';
 
   /* ================= CSS ================= */
   const css = `
@@ -788,7 +798,8 @@
       const b = s.bubble;
       addCls(b, 'wa-bubble');
       setAttr(b, 'data-wa-own', String(s.own));
-      const key = s.sender || String(s.own);
+      // זנב בהודעה הראשונה של כל קבוצה של גוגל (שם+שעה מעליה): קבוצה חדשה מתחילה אחרי הפסקה או ביום חדש, כמו בוואטסאפ
+      const key = s.el.closest(SEL.group) || s.sender || String(s.own);
       setAttr(b, 'data-wa-tail', String(key !== prevKey));
       const hasMedia = [...b.querySelectorAll('video, canvas, iframe, img')].some((m) => !m.closest('[data-member-id]') && m.offsetWidth > 60);
       setCls(b, 'wa-media', hasMedia);
@@ -817,6 +828,7 @@
       });
       scroller.querySelectorAll('[data-member-id]').forEach((h) => {
         if (h.closest(SEL.receipts)) return;                           // כבר מכוסה דרך הרשימה שלו
+        if (h.closest(SEL.message)) return;                            // בתוך תוכן הודעה (למשל האווטאר של כותב בציטוט) - לא "נקרא"
         if (h.textContent.trim()) return;                              // יש טקסט = כפתור שם, לא אווטאר
         const w = h.offsetWidth, ht = h.offsetHeight;
         if (h.classList.contains('wa-seen') || (w > 0 && w <= 28 && ht <= 28)) cand.add(h);   // האווטאר הגדול של השולח - לא נוגעים
@@ -837,6 +849,7 @@
         // הטבעת/המתאר הלבן שייך לעוטף הקטן שסביב האווטאר: מסתירים גם אותו (עד 3 רמות, רק קטנים וללא תוכן הודעה)
         for (let n = c.parentElement, k = 0; n && n !== scroller && k < 3; n = n.parentElement, k++) {
           if (n.offsetWidth > 40 || n.offsetHeight > 40) break;
+          if (n.textContent.trim()) break;                                // עוטף עם טקסט (שם קצר וכו') - לא מסתירים
           if (n.querySelector('video, [jsname="bgckF"]')) break;
           addCls(n, 'wa-seen'); ghosts.add(n);
         }
