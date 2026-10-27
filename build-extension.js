@@ -31,7 +31,7 @@ const manifest = {
   content_scripts: [{
     matches: ['https://chat.google.com/*', 'https://mail.google.com/chat/*'],
     js: ['content.js'],
-    run_at: 'document_idle',
+    run_at: 'document_start',   // מנוע המהירות חייב להתחיל לפני שגוגל יוצרת את נגן ההודעות הקוליות
     // רץ בתוך הדף עצמו (כמו הסקריפט עם @grant none): כך אפשר לתפוס את נגן ההודעות הקוליות של גוגל
     // ולשנות לו מהירות, ופקודות האבחון (waDebug וכו') זמינות בקונסול
     world: 'MAIN',

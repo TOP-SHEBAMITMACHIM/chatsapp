@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         ChatsApp – וואטסאפ לגוגל צ'אט
 // @namespace    chatsapp
-// @version      1.0.2
+// @version      1.1.0
 // @description  גוגל צ'אט בעיצוב וואטסאפ: בועות ירוקות/לבנות עם זנב, שעה ו-VV בתוך הבועה, ציטוטים, מסגרות לתמונות ורקע הוואטסאפ המקורי
 // @homepageURL  https://github.com/TOP-SHEBAMITMACHIM/chatsapp
 // @downloadURL  https://raw.githubusercontent.com/TOP-SHEBAMITMACHIM/chatsapp/main/chatsapp.user.js
 // @updateURL    https://raw.githubusercontent.com/TOP-SHEBAMITMACHIM/chatsapp/main/chatsapp.user.js
 // @match        https://chat.google.com/*
 // @match        https://mail.google.com/chat/*
-// @run-at       document-idle
+// @run-at       document-start
 // @grant        none
 // @sandbox      raw
 // @inject-into  page
@@ -17,7 +17,68 @@
 (function () {
   'use strict';
 
-  const VERSION = '1.0.2';
+  /* ================= מנוע המהירות של הודעות קוליות ================= */
+  // גוגל מנגנת הודעה קולית באלמנט <audio> שנוצר בזיכרון ולא נכנס לדף, ולפעמים מחזירה לו את המהירות ל-1.
+  // לכן (כמו בתוסף "Google Chat Audio Speed Controller"):
+  //  - המנוע רץ כבר בתחילת טעינת הדף (document-start), לפני שגוגל יוצרת את הנגן
+  //  - תופס כל נגן שנוצר (new Audio / createElement('audio')) או שמתנגן (play)
+  //  - אוכף את המהירות בכל אירוע של הנגן (play, playing, loadedmetadata, ratechange), ועוד בדיקה כל 1.5 שניות
+  //  - קורא את המהירות מ-localStorage / מתכונה על <html>, כך שהוא לא תלוי באיפה רץ שאר הסקריפט
+  // הוא חייב לרוץ בתוך הדף עצמו: אם הסקריפט רץ ב"עולם" נפרד (יש מנהלי סקריפטים שעושים את זה), המנוע מוזרק לדף
+  // דרך <script> עם ה-nonce של גוגל. כשהסקריפט כבר בתוך הדף גוגל חוסמת את ההזרקה (Trusted Types) - וזה בסדר.
+  function speedEngine() {
+    if (window.__chatsappSpeed) return;
+    window.__chatsappSpeed = true;
+    const rate = () => {
+      const a = Number(document.documentElement.getAttribute('data-wa-voice-rate'));
+      if (a) return a;
+      try { return Number(localStorage.getItem('wa-voice-speed')) || 1; } catch (e) { return 1; }
+    };
+    const tracked = new Set();
+    const enforce = (a) => { try { const r = rate(); if (a.playbackRate !== r) a.playbackRate = r; } catch (e) {} };
+    const hook = (a) => {
+      if (!a || a.__chatsappHooked) return;
+      a.__chatsappHooked = true;
+      tracked.add(new WeakRef(a));
+      ['play', 'playing', 'loadedmetadata', 'ratechange'].forEach((ev) => a.addEventListener(ev, () => enforce(a)));
+      enforce(a);
+    };
+    const each = () => tracked.forEach((w) => { const a = w.deref(); if (a) enforce(a); else tracked.delete(w); });
+    const P = HTMLMediaElement.prototype, play = P.play;
+    P.play = function () { if (this.tagName === 'AUDIO') hook(this); return play.apply(this, arguments); };
+    const A = window.Audio;
+    window.Audio = function (...args) { const a = new A(...args); hook(a); return a; };
+    window.Audio.prototype = A.prototype;
+    const create = Document.prototype.createElement;
+    Document.prototype.createElement = function (tag, ...rest) {
+      const el = create.call(this, tag, ...rest);
+      if (typeof tag === 'string' && tag.toLowerCase() === 'audio') hook(el);
+      return el;
+    };
+    document.addEventListener('chatsapp-rate', each);   // המשתמש החליף מהירות - גם להודעה שמתנגנת עכשיו
+    setInterval(each, 1500);
+  }
+  try { speedEngine(); } catch (e) {}
+  function injectSpeedEngine() {
+    try {
+      const n = document.querySelector('script[nonce]');
+      const s = document.createElement('script');
+      if (n && n.nonce) s.nonce = n.nonce;
+      s.textContent = '(' + speedEngine.toString() + ')();';
+      (document.head || document.documentElement).appendChild(s);
+      s.remove();
+    } catch (e) { /* כבר בתוך הדף */ }
+  }
+  // בתחילת הטעינה עוד אין ב-DOM סקריפט עם nonce, ולכן מנסים גם כשהדף מוכן
+  injectSpeedEngine();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', injectSpeedEngine, { once: true });
+
+  // שאר הסקריפט (העיצוב) צריך דף טעון: הוא רץ כשה-DOM מוכן
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', chatsappMain, { once: true });
+  else chatsappMain();
+
+  function chatsappMain() {
+  const VERSION = '1.1.0';
   const W = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
   if (W.waStop) { try { W.waStop(); } catch (e) {} }
 
@@ -693,12 +754,15 @@
   const PLAY_BTN = 'button[aria-label^="הפעל"], button[aria-label^="השה"], button[aria-label^="Play"], button[aria-label^="Pause"]';
   const VOICE_TIME_RE = /\d+:\d\d\s*\/\s*\d+:\d\d/;
   function voiceChips(oneSided) {
+    // שורת הנגן: גוגל מסמנת אותה data-media-type="audio". גיבוי: כפתור "הפעל" שלידו זמן בצורה 0:00/0:05
+    const rows = new Set(document.querySelectorAll('[data-media-type="audio"]'));
     document.querySelectorAll(PLAY_BTN).forEach((btn) => {
-      let row = null;
+      if (btn.closest('[data-media-type="audio"]')) return;
       for (let n = btn.parentElement, k = 0; n && k < 3; n = n.parentElement, k++) {
-        if (VOICE_TIME_RE.test(n.textContent)) { row = n; break; }
+        if (VOICE_TIME_RE.test(n.textContent)) { rows.add(n); break; }
       }
-      if (!row) return;
+    });
+    rows.forEach((row) => {
       // הכרטיס של ההודעה הקולית (אצל גוגל: מסגרת אפורה עם פינות 20px) הופך לבועה ירוקה/לבנה לפי השולח
       if (!row.closest('.wa-voicebox')) {
         for (let n = row.parentElement, k = 0; n && k < 4; n = n.parentElement, k++) {
@@ -974,39 +1038,10 @@
   pickBackground();
   tag();
 
-  /* ================= מהירות להודעות קוליות ================= */
-  // גוגל מנגנת הודעה קולית באלמנט <audio> שנוצר בזיכרון ולא נכנס לדף, ולכן אי אפשר "למצוא" אותו מבחוץ.
-  // במקום זה תופסים את play() של כל נגן (הסקריפט רץ בתוך הדף עצמו) וקובעים לו את המהירות לפני שהוא מתחיל.
+  /* ================= מהירות להודעות קוליות: הכפתור ================= */
   // ליד כל הודעה קולית נוסף כפתור "1×" כמו בוואטסאפ: כל לחיצה עוברת למהירות הבאה, והבחירה נשמרת.
-  //
-  // איפה הסקריפט רץ תלוי בתוסף: Tampermonkey בכרום החדש לפעמים מריץ אותו ב"עולם" נפרד מהדף, ואז שינוי של
-  // HTMLMediaElement שם לא משפיע על הנגן של גוגל. לכן מתקינים את התפיסה בשני מקומות:
-  //  1. כאן, ישירות (עובד כשהסקריפט רץ בתוך הדף - התוסף, או Tampermonkey בהרצה רגילה)
-  //  2. בתוך הדף עצמו, דרך <script> עם ה-nonce של גוגל (עובד כשהסקריפט רץ בעולם נפרד; כשהוא כבר בתוך הדף,
-  //     גוגל חוסמת את זה - Trusted Types - וזה בסדר, כי סעיף 1 כבר עשה את העבודה)
-  // המהירות עוברת בין העולמות דרך תכונה על <html>, ושינוי באמצע השמעה - דרך אירוע chatsapp-rate.
-  function playHook() {
-    if (window.__chatsappPlayHook) return;
-    window.__chatsappPlayHook = true;
-    const P = HTMLMediaElement.prototype, orig = P.play;
-    let last = null;
-    const rate = () => Number(document.documentElement.getAttribute('data-wa-voice-rate')) || 1;
-    P.play = function () {
-      try { if (this.tagName === 'AUDIO') { last = this; this.playbackRate = rate(); } } catch (e) {}
-      return orig.apply(this, arguments);
-    };
-    document.addEventListener('chatsapp-rate', () => { try { if (last) last.playbackRate = rate(); } catch (e) {} });
-  }
+  // את המהירות עצמה אוכף "מנוע המהירות" (speedEngine, בראש הקובץ), שמתחיל לפני שגוגל יוצרת את הנגן.
   publishRate();
-  try { playHook(); } catch (e) {}
-  try {
-    const s = document.createElement('script');
-    const n = document.querySelector('script[nonce]');
-    if (n && n.nonce) s.nonce = n.nonce;
-    s.textContent = '(' + playHook.toString() + ')();';
-    (document.head || document.documentElement).appendChild(s);
-    s.remove();
-  } catch (e) { /* כבר בתוך הדף - סעיף 1 מספיק */ }
   W.waSpeed = (x) => {                       // waSpeed(1.5) - קביעת מהירות ידנית
     const k = VOICE_SPEEDS.indexOf(Number(x));
     if (k < 0) { console.log('מהירויות זמינות:', VOICE_SPEEDS.join(', ')); return; }
@@ -1144,4 +1179,5 @@
     ['data-wa-rtl', 'data-wa-ticks', 'data-wa-bg', 'data-chatsapp-version'].forEach((a) => document.documentElement.removeAttribute(a));
     delete W.waDebug; delete W.waExport; delete W.waSeen; delete W.waGroups; delete W.waQuote; delete W.waTime; delete W.waBg; delete W.waSpeed; delete W.waBox; delete W.waStop;
   };
+  }   // chatsappMain
 })();
