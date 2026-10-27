@@ -32,6 +32,9 @@ const manifest = {
     matches: ['https://chat.google.com/*', 'https://mail.google.com/chat/*'],
     js: ['content.js'],
     run_at: 'document_idle',
+    // בתוך Gmail הצ'אט נטען ב-iframe של chat.google.com, וכרום מריץ סקריפט תוכן רק בדף הראשי אם לא מבקשים
+    // אחרת (Tampermonkey רץ גם ב-iframes, ולכן שם זה עבד)
+    all_frames: true,
     // רץ בתוך הדף עצמו (כמו הסקריפט עם @grant none), כך שפקודות האבחון (waDebug וכו') זמינות בקונסול
     world: 'MAIN',
   }],
