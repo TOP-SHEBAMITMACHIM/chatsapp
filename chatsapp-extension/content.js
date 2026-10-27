@@ -1,8 +1,8 @@
-// ChatsApp 1.0.0 - נבנה אוטומטית מ-chatsapp.user.js (לא לערוך כאן)
+// ChatsApp 1.0.1 - נבנה אוטומטית מ-chatsapp.user.js (לא לערוך כאן)
 // ==UserScript==
 // @name         ChatsApp – וואטסאפ לגוגל צ'אט
 // @namespace    chatsapp
-// @version      1.0.0
+// @version      1.0.1
 // @description  גוגל צ'אט בעיצוב וואטסאפ: בועות ירוקות/לבנות עם זנב, שעה ו-VV בתוך הבועה, ציטוטים, מסגרות לתמונות ורקע הוואטסאפ המקורי
 // @homepageURL  https://github.com/TOP-SHEBAMITMACHIM/chatsapp
 // @downloadURL  https://raw.githubusercontent.com/TOP-SHEBAMITMACHIM/chatsapp/main/chatsapp.user.js
@@ -16,7 +16,7 @@
 (function () {
   'use strict';
 
-  const VERSION = '1.0.0';
+  const VERSION = '1.0.1';
   const W = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
   if (W.waStop) { try { W.waStop(); } catch (e) {} }
 
@@ -185,15 +185,29 @@
   .wa-bubble .wa-quote[data-wa-me="true"] .wa-qname { color: var(--wa-quote-me) !important; }
   .wa-bubble .wa-qglyph { display: none !important; }   /* אייקון הגרשיים הוורוד של גוגל (גם אם הוא מחוץ לאלמנט שזוהה כציטוט) */
 
-  /* ---- כפתור מהירות בתוך כל הודעה קולית (כמו בוואטסאפ) ---- */
+  /* ---- הודעה קולית: בועה של וואטסאפ (במקום הכרטיס עם המסגרת האפורה) ---- */
+  .wa-voicebox {
+    border-color: transparent !important; border-radius: 8px !important; box-shadow: var(--wa-shadow) !important;
+    position: relative !important; padding-bottom: 22px !important;   /* מקום לשעה ול-VV בתחתית */
+  }
+  .wa-voicebox[data-wa-own="true"] { background: var(--wa-out) !important; }
+  .wa-voicebox[data-wa-own="false"] { background: var(--wa-in) !important; }
+  .wa-voicebox hr { border-color: rgba(0,0,0,.08) !important; background: rgba(0,0,0,.08) !important; }
+  .wa-voicebox button[aria-label] { color: var(--wa-sub) !important; }          /* כפתור הנגינה: אפור כמו בוואטסאפ */
+  .wa-voicebox > .wa-mmeta {                                                      /* שעה + VV: כמו בבועת טקסט, לא כתווית על תמונה */
+    background: transparent; color: var(--wa-sub); padding: 0; bottom: 4px; inset-inline-end: 10px;
+  }
+  .wa-voicebox > .wa-mmeta .wa-tk:not([data-state="read"]) { color: ${TICK_SENT}; }
+
+  /* ---- כפתור מהירות בתוך ההודעה הקולית (כמו בוואטסאפ) ---- */
   .wa-vspeed {
     display: inline-flex; align-items: center; justify-content: center; flex: none; align-self: center;
     min-width: 34px; height: 22px; padding: 0 7px; margin-inline: 6px; box-sizing: border-box;
-    border-radius: 11px; background: rgba(0,0,0,.08); color: var(--wa-sub) !important;
+    border-radius: 11px; background: rgba(0,0,0,.07); color: var(--wa-sub) !important;
     font: 700 12px/1 Roboto, Arial, sans-serif; cursor: pointer; user-select: none;
     direction: ltr !important; unicode-bidi: isolate;   /* אחרת בעברית "1×" מוצג הפוך */
   }
-  .wa-vspeed:hover { background: rgba(0,0,0,.14); }
+  .wa-vspeed:hover { background: rgba(0,0,0,.13); }
 
   /* ---- הודעה עם קובץ/סרטון/תמונה ---- */
   .wa-bubble.wa-media { width: auto !important; max-width: none !important; }
@@ -611,22 +625,27 @@
         const w = n.getBoundingClientRect().width;
         if (w <= r.width + 24) f = n; else break;
       }
-      const sender = senderOf(f);
-      let own = null;
-      if (MY_ID && sender) own = sender === MY_ID;
-      else if (!oneSided.has(sc) && !inSpace(f)) {
-        const s = sc.getBoundingClientRect(), fr = f.getBoundingClientRect();
-        const dl = fr.left - s.left, dr = s.right - fr.right;
-        if (Math.abs(dl - dr) >= 24) own = isRtl ? dl < dr : dr < dl;
-      }
+      const own = boxOwn(f, sc, oneSided);
       if (own === null) return;
       addCls(f, 'wa-mediabox');
       setAttr(f, 'data-wa-own', String(own));
     });
+  }
+  // של מי תמונה / הודעה קולית (אין להן בועה של גוגל): לפי מזהה השולח, ואם אין - לפי הצד (לא במרחב)
+  function boxOwn(f, sc, oneSided) {
+    const sender = senderOf(f);
+    if (MY_ID && sender) return sender === MY_ID;
+    if (!sc || oneSided.has(sc) || inSpace(f)) return null;
+    const s = sc.getBoundingClientRect(), fr = f.getBoundingClientRect();
+    const dl = fr.left - s.left, dr = s.right - fr.right;
+    if (Math.abs(dl - dr) < 24) return null;
+    return isRtl ? dl < dr : dr < dl;
+  }
 
-    // שעה + וי וי בתוך המסגרת, בפינה התחתונה של התמונה (כמו בוואטסאפ): תווית כהה-שקופה עם טקסט לבן.
-    // "נקרא" = יש אחרי התמונה אווטאר "נקרא" של מישהו אחר (אותה שיטה כמו בהודעות טקסט).
-    document.querySelectorAll('.wa-mediabox').forEach((f) => {
+  // שעה + וי וי בתוך מסגרת התמונה (תווית כהה-שקופה בפינה) ובתוך בועת ההודעה הקולית (אפור, בתחתית, כמו בבועת טקסט).
+  // "נקרא" = יש אחריהן אווטאר "נקרא" של מישהו אחר (אותה שיטה כמו בהודעות טקסט).
+  function boxMeta(seenSlots) {
+    document.querySelectorAll('.wa-mediabox, .wa-voicebox').forEach((f) => {
       let m = f.querySelector(':scope > .wa-mmeta');
       if (!m) {
         m = document.createElement('span');
@@ -650,18 +669,18 @@
   }
 
   // ---- מהירות הודעות קוליות (ההפעלה עצמה - בסוף הקובץ) ----
-  let speedIdx = 0, activeMedia = null;
+  let speedIdx = 0;
   try { const v = Number(localStorage.getItem('wa-voice-speed')); const k = VOICE_SPEEDS.indexOf(v); if (k >= 0) speedIdx = k; } catch (e) {}
   const speedText = () => VOICE_SPEEDS[speedIdx] + '×';
-  function applyRate(m) {
-    if (!m) return;
-    const r = VOICE_SPEEDS[speedIdx];
-    if (m.playbackRate !== r) m.playbackRate = r;
+  // המהירות הנוכחית נכתבת על <html>, ומשם הנגן (playHook, בסוף הקובץ) קורא אותה
+  function publishRate() {
+    document.documentElement.setAttribute('data-wa-voice-rate', String(VOICE_SPEEDS[speedIdx]));
+    document.dispatchEvent(new CustomEvent('chatsapp-rate'));   // גם להודעה שמתנגנת עכשיו
   }
   function setSpeed(k) {
     speedIdx = k;
     try { localStorage.setItem('wa-voice-speed', String(VOICE_SPEEDS[k])); } catch (e) {}
-    applyRate(activeMedia);   // גם להודעה שמתנגנת עכשיו
+    publishRate();
     document.querySelectorAll('.wa-vspeed').forEach((c) => { if (c.textContent !== speedText()) c.textContent = speedText(); });
   }
   const onSpeedClick = (e) => {
@@ -671,13 +690,25 @@
   // נגן הודעה קולית = כפתור "הפעל/השהה" שליד יש זמן בצורה 0:00/0:05
   const PLAY_BTN = 'button[aria-label^="הפעל"], button[aria-label^="השה"], button[aria-label^="Play"], button[aria-label^="Pause"]';
   const VOICE_TIME_RE = /\d+:\d\d\s*\/\s*\d+:\d\d/;
-  function voiceChips() {
+  function voiceChips(oneSided) {
     document.querySelectorAll(PLAY_BTN).forEach((btn) => {
       let row = null;
       for (let n = btn.parentElement, k = 0; n && k < 3; n = n.parentElement, k++) {
         if (VOICE_TIME_RE.test(n.textContent)) { row = n; break; }
       }
-      if (!row || row.querySelector(':scope > .wa-vspeed')) return;
+      if (!row) return;
+      // הכרטיס של ההודעה הקולית (אצל גוגל: מסגרת אפורה עם פינות 20px) הופך לבועה ירוקה/לבנה לפי השולח
+      if (!row.closest('.wa-voicebox')) {
+        for (let n = row.parentElement, k = 0; n && k < 4; n = n.parentElement, k++) {
+          const cs = getComputedStyle(n);
+          if (parseFloat(cs.borderTopWidth) > 0 && parseFloat(cs.borderTopLeftRadius) >= 12) {
+            const own = boxOwn(n, n.closest('.wa-scroller'), oneSided);
+            if (own !== null) { addCls(n, 'wa-voicebox'); setAttr(n, 'data-wa-own', String(own)); }
+            break;
+          }
+        }
+      }
+      if (row.querySelector(':scope > .wa-vspeed')) return;
       const chip = document.createElement('span');
       chip.className = 'wa-vspeed';
       chip.setAttribute('role', 'button');
@@ -900,7 +931,8 @@
     composeFix();
     try { barsFix(); } catch (e) { tag.error = 'bars: ' + e; }
     try { frameMedia(oneSided, seenSlots); } catch (e) { tag.error = 'media: ' + e; }
-    try { voiceChips(); } catch (e) { tag.error = 'voice: ' + e; }
+    try { voiceChips(oneSided); } catch (e) { tag.error = 'voice: ' + e; }
+    try { boxMeta(seenSlots); } catch (e) { tag.error = 'boxmeta: ' + e; }
     tag.last = { total: msgs.length, seenCount, readUpTo: readIdx, state, seenSlots: seenSlots.length };
   }
 
@@ -944,11 +976,35 @@
   // גוגל מנגנת הודעה קולית באלמנט <audio> שנוצר בזיכרון ולא נכנס לדף, ולכן אי אפשר "למצוא" אותו מבחוץ.
   // במקום זה תופסים את play() של כל נגן (הסקריפט רץ בתוך הדף עצמו) וקובעים לו את המהירות לפני שהוא מתחיל.
   // ליד כל הודעה קולית נוסף כפתור "1×" כמו בוואטסאפ: כל לחיצה עוברת למהירות הבאה, והבחירה נשמרת.
-  const MP = HTMLMediaElement.prototype, origPlay = MP.play;
-  MP.play = function () {
-    try { if (this.tagName === 'AUDIO') { activeMedia = this; applyRate(this); } } catch (e) {}
-    return origPlay.apply(this, arguments);
-  };
+  //
+  // איפה הסקריפט רץ תלוי בתוסף: Tampermonkey בכרום החדש לפעמים מריץ אותו ב"עולם" נפרד מהדף, ואז שינוי של
+  // HTMLMediaElement שם לא משפיע על הנגן של גוגל. לכן מתקינים את התפיסה בשני מקומות:
+  //  1. כאן, ישירות (עובד כשהסקריפט רץ בתוך הדף - התוסף, או Tampermonkey בהרצה רגילה)
+  //  2. בתוך הדף עצמו, דרך <script> עם ה-nonce של גוגל (עובד כשהסקריפט רץ בעולם נפרד; כשהוא כבר בתוך הדף,
+  //     גוגל חוסמת את זה - Trusted Types - וזה בסדר, כי סעיף 1 כבר עשה את העבודה)
+  // המהירות עוברת בין העולמות דרך תכונה על <html>, ושינוי באמצע השמעה - דרך אירוע chatsapp-rate.
+  function playHook() {
+    if (window.__chatsappPlayHook) return;
+    window.__chatsappPlayHook = true;
+    const P = HTMLMediaElement.prototype, orig = P.play;
+    let last = null;
+    const rate = () => Number(document.documentElement.getAttribute('data-wa-voice-rate')) || 1;
+    P.play = function () {
+      try { if (this.tagName === 'AUDIO') { last = this; this.playbackRate = rate(); } } catch (e) {}
+      return orig.apply(this, arguments);
+    };
+    document.addEventListener('chatsapp-rate', () => { try { if (last) last.playbackRate = rate(); } catch (e) {} });
+  }
+  publishRate();
+  try { playHook(); } catch (e) {}
+  try {
+    const s = document.createElement('script');
+    const n = document.querySelector('script[nonce]');
+    if (n && n.nonce) s.nonce = n.nonce;
+    s.textContent = '(' + playHook.toString() + ')();';
+    (document.head || document.documentElement).appendChild(s);
+    s.remove();
+  } catch (e) { /* כבר בתוך הדף - סעיף 1 מספיק */ }
   W.waSpeed = (x) => {                       // waSpeed(1.5) - קביעת מהירות ידנית
     const k = VOICE_SPEEDS.indexOf(Number(x));
     if (k < 0) { console.log('מהירויות זמינות:', VOICE_SPEEDS.join(', ')); return; }
@@ -1072,7 +1128,9 @@
     document.removeEventListener('load', onMediaLoad, true);
     document.removeEventListener('loadedmetadata', onMediaLoad, true);
     document.querySelectorAll('.wa-ticks, .wa-meta, .wa-mmeta').forEach((x) => x.remove());
-    if (MP.play !== origPlay) MP.play = origPlay;
+    // התפיסה של הנגן נשארת (אי אפשר להסיר אותה מתוך הדף מכאן), אבל בלי התכונה היא חוזרת למהירות רגילה
+    document.documentElement.removeAttribute('data-wa-voice-rate');
+    document.dispatchEvent(new CustomEvent('chatsapp-rate'));
     document.querySelectorAll('.wa-vspeed').forEach((x) => x.remove());
     document.querySelectorAll('[class*="wa-"]').forEach((x) => {
       [...x.classList].filter((c) => c.startsWith('wa-')).forEach((c) => x.classList.remove(c));
