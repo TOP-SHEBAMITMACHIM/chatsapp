@@ -15,9 +15,9 @@
 ## התקנה (אחת מהשתיים, לא שתיהן)
 
 **תוסף לכרום**
-1. הורידו את קובץ ה-ZIP של התוסף מ-[הגרסה האחרונה](../../releases/latest) וחלצו אותו
+1. הורידו את קובץ ה-ZIP של התוסף מ-[הגרסה האחרונה](../../releases/latest) וחלצו אותו לתיקייה ("חלץ הכל")
 2. היכנסו ל-`chrome://extensions` והדליקו "מצב פיתוח" (Developer mode)
-3. "טעינת פריט לא ארוז" (Load unpacked) ← בחרו את התיקייה `chatsapp-extension`
+3. "טעינת פריט לא ארוז" (Load unpacked) ← בחרו את התיקייה שחילצתם, זו שיש בתוכה ישר את `manifest.json`. את התיקייה לא מוחקים אחרי זה
 
 **סקריפט ל-Tampermonkey**
 עם [Tampermonkey](https://www.tampermonkey.net/) מותקן, לחצו על
@@ -33,7 +33,7 @@
 node build-extension.js
 ```
 
-הפקודה מעדכנת את `chatsapp-extension/` (manifest, ‏content.js ואייקונים).
+הפקודה מעדכנת את `chatsapp-extension/` (manifest, ‏content.js ואייקונים) ויוצרת את `chatsapp-extension-v<גרסה>.zip` להעלאה ל-Release.
 
 ## באגים
 גוגל משנים את האתר מדי פעם. אם משהו נשבר, פתחו [Issue](../../issues) עם צילום מסך. בקונסול (F12) אפשר להריץ `waDebug()` ולצרף את הפלט: הוא מכיל רק מספרים, בלי תוכן הודעות.

@@ -106,4 +106,36 @@ function drawIcon(size) {
 }
 for (const s of [16, 32, 48, 128]) fs.writeFileSync(path.join(OUT, 'icons', 'icon' + s + '.png'), drawIcon(s));
 
-console.log('ChatsApp ' + version + ' → ' + OUT);
+// ---- ZIP להפצה ----
+// נבנה כאן ולא ב-Compress-Archive של PowerShell: שם הנתיבים בתוך ה-ZIP נכתבים עם \ (לא תקני), וכל הקבצים
+// בתוך תיקייה נוספת - אחרי חילוץ בוחרים את התיקייה החיצונית וכרום אומר שאין manifest. כאן manifest.json
+// נמצא ישר בשורש ה-ZIP, והנתיבים עם /.
+function zip(files) {
+  const local = [], central = [];
+  let offset = 0;
+  const dosTime = 0, dosDate = (2026 - 1980) << 9 | 1 << 5 | 1;
+  for (const [name, data] of files) {
+    const nameBuf = Buffer.from(name, 'utf8'), comp = zlib.deflateRawSync(data), crc = crc32(data);
+    const h = Buffer.alloc(30);
+    h.writeUInt32LE(0x04034b50, 0); h.writeUInt16LE(20, 4); h.writeUInt16LE(0x0800, 6); h.writeUInt16LE(8, 8);
+    h.writeUInt16LE(dosTime, 10); h.writeUInt16LE(dosDate, 12); h.writeUInt32LE(crc, 14);
+    h.writeUInt32LE(comp.length, 18); h.writeUInt32LE(data.length, 22); h.writeUInt16LE(nameBuf.length, 26); h.writeUInt16LE(0, 28);
+    local.push(h, nameBuf, comp);
+    const c = Buffer.alloc(46);
+    c.writeUInt32LE(0x02014b50, 0); c.writeUInt16LE(20, 4); c.writeUInt16LE(20, 6); c.writeUInt16LE(0x0800, 8); c.writeUInt16LE(8, 10);
+    c.writeUInt16LE(dosTime, 12); c.writeUInt16LE(dosDate, 14); c.writeUInt32LE(crc, 16); c.writeUInt32LE(comp.length, 20);
+    c.writeUInt32LE(data.length, 24); c.writeUInt16LE(nameBuf.length, 28); c.writeUInt32LE(offset, 42);
+    central.push(c, nameBuf);
+    offset += 30 + nameBuf.length + comp.length;
+  }
+  const cd = Buffer.concat(central), end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(files.length, 8); end.writeUInt16LE(files.length, 10);
+  end.writeUInt32LE(cd.length, 12); end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...local, cd, end]);
+}
+const zipFiles = ['manifest.json', 'content.js', 'icons/icon16.png', 'icons/icon32.png', 'icons/icon48.png', 'icons/icon128.png']
+  .map((f) => [f, fs.readFileSync(path.join(OUT, ...f.split('/')))]);
+const ZIP = path.join(__dirname, 'chatsapp-extension-v' + version + '.zip');
+fs.writeFileSync(ZIP, zip(zipFiles));
+
+console.log('ChatsApp ' + version + ' → ' + OUT + '\n                → ' + ZIP);
