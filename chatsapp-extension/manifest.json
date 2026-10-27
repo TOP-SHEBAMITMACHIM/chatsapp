@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "ChatsApp – וואטסאפ לגוגל צ'אט",
   "short_name": "ChatsApp",
-  "version": "1.1.0",
-  "version_name": "v1.1",
+  "version": "1.2.0",
+  "version_name": "v1.2",
   "description": "גוגל צ'אט בעיצוב וואטסאפ: בועות ירוקות/לבנות עם זנב, שעה ו-VV בתוך הבועה, ציטוטים, מסגרות לתמונות ורקע הוואטסאפ המקורי",
   "minimum_chrome_version": "111",
   "icons": {
@@ -21,7 +21,7 @@
       "js": [
         "content.js"
       ],
-      "run_at": "document_start",
+      "run_at": "document_idle",
       "world": "MAIN"
     }
   ]

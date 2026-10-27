@@ -2,20 +2,20 @@
 
 הופך את [Google Chat](https://chat.google.com) למשהו שנראה ומרגיש כמו וואטסאפ. זמין כתוסף לכרום וכסקריפט ל-Tampermonkey.
 
-*Makes Google Chat look like WhatsApp: green/white bubbles, in-bubble time and read ticks, quotes, framed images, the WhatsApp wallpaper and a voice-message speed button.*
+*Makes Google Chat look like WhatsApp: green/white bubbles, in-bubble time and read ticks, quotes, framed images and voice messages, and the WhatsApp wallpaper.*
 
 ## מה יש
 - בועות: שלי בירוק, של אחרים בלבן, עם זנב
 - שעה ו-VV בתוך הבועה (VV כחולים = נקרא). במרחבים אין VV
 - ציטוטים (תשובה להודעה) בעיצוב של וואטסאפ
 - מסגרת ירוקה/לבנה לתמונות, סטיקרים וסרטונים, עם השעה בפינה
+- הודעות קוליות בבועה ירוקה/לבנה, עם שעה ו-VV
 - רקע הוואטסאפ, "לא נקראו" ו"כותב/ת..." בסגנון וואטסאפ
-- כפתור מהירות ליד כל הודעה קולית: 1× / 1.25× / 1.5× / 2×
 
 ## התקנה (אחת מהשתיים, לא שתיהן)
 
 **תוסף לכרום**
-1. הורידו את `chatsapp-extension-v1.0.zip` מ-[Releases](../../releases/latest) וחלצו אותו
+1. הורידו את קובץ ה-ZIP של התוסף מ-[הגרסה האחרונה](../../releases/latest) וחלצו אותו
 2. היכנסו ל-`chrome://extensions` והדליקו "מצב פיתוח" (Developer mode)
 3. "טעינת פריט לא ארוז" (Load unpacked) ← בחרו את התיקייה `chatsapp-extension`
 
