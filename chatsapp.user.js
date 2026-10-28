@@ -32,7 +32,7 @@
   let iconsLast = 0, iconsTimer = 0;
   function iconsFix() {
     const now = Date.now();
-    if (now - iconsLast < 700) { if (!iconsTimer) iconsTimer = setTimeout(() => { iconsTimer = 0; iconsFix(); }, 750); return; }
+    if (now - iconsLast < 1500) { if (!iconsTimer) iconsTimer = setTimeout(() => { iconsTimer = 0; iconsFix(); }, 1550); return; }
     iconsLast = now;
     // רשימת הצ'אטים (גם כשהיא ב-iframe נפרד בתוך Gmail) + הפס של Gmail (לא רשימת התיקיות של הדואר)
     const cand = document.querySelectorAll('[jsname="yPINCb"] [jsname], [jsname="yPINCb"] [role], [role="listitem"][data-group-id], [role="listitem"][data-group-id] [role="link"], .V6');
@@ -930,10 +930,11 @@
     const img = new Image();
     img.onload = () => {
       try {
+        // בחצי גודל (הרקע מוצג ממילא ברוחב BG_WIDTH): פי 4 פחות פיקסלים לעבד ולקודד
         const c = document.createElement('canvas');
-        c.width = img.naturalWidth; c.height = img.naturalHeight;
+        c.width = Math.round(img.naturalWidth / 2); c.height = Math.round(img.naturalHeight / 2);
         const x = c.getContext('2d');
-        x.drawImage(img, 0, 0);
+        x.drawImage(img, 0, 0, c.width, c.height);
         const d = x.getImageData(0, 0, c.width, c.height), p = d.data, hist = new Uint32Array(256);
         for (let i = 0; i < p.length; i += 4) hist[(p[i] * 0.299 + p[i + 1] * 0.587 + p[i + 2] * 0.114) | 0]++;
         let bgL = 0, lo = 0, acc = 0;
@@ -946,7 +947,13 @@
           p[i] = BG[0] + (FG[0] - BG[0]) * t; p[i + 1] = BG[1] + (FG[1] - BG[1]) * t; p[i + 2] = BG[2] + (FG[2] - BG[2]) * t; p[i + 3] = 255;
         }
         x.putImageData(d, 0, 0);
-        if (!stopped) document.documentElement.style.setProperty('--wa-img-dark', 'url("' + c.toDataURL('image/webp', 0.9) + '")');
+        // קידוד אסינכרוני (toBlob) במקום toDataURL, כדי שהקידוד לא יתקע את הדף
+        c.toBlob((blob) => {
+          if (!blob || stopped) return;
+          const fr = new FileReader();
+          fr.onload = () => { if (!stopped) document.documentElement.style.setProperty('--wa-img-dark', 'url("' + fr.result + '")'); };
+          fr.readAsDataURL(blob);
+        }, 'image/webp', 0.9);
       } catch (e) { tag.error = 'darkbg: ' + e; }
     };
     img.src = IMG_LIGHT;
@@ -1023,49 +1030,65 @@
     });
   }
 
-  // צביעת משטחים וטקסט של גוגל בתוך החלון. כל אלמנט נבדק פעם אחת (כשהוא מופיע), כך שזה זול גם בשיחה ארוכה.
+  // צביעת משטחים וטקסט של גוגל בתוך החלון (למצב כהה). כל אלמנט נבדק פעם אחת, בזמן פנוי של הדפדפן ובקבוצות קטנות,
+  // כך שזה לא תוקע את הלשונית - וגם במצב בהיר, כדי שהמעבר לכהה יהיה מיידי. תוכן הבועות לא נבדק (הוא נצבע דרך המשתנים).
   const dkSeen = new WeakSet();
   const DK_SKIP = '.wa-darkbtn, [role="menu"], [role="dialog"], [role="tooltip"], [role="listbox"], ' + SEL.toolbar;
-  let dkLast = 0, dkTimer = 0;
-  // רץ גם במצב בהיר (הסימונים לא משפיעים שם), כך שהמעבר לכהה מיידי - רק החלפת תכונה ב-html
+  let dkLast = 0, dkTimer = 0, dkIdle = 0, dkQueue = [], dkHead = 0;
+  const idle = window.requestIdleCallback || ((f) => setTimeout(() => f(null), 60));
   function darkFix(cards) {
     if (!cards.length) return;
     const now = Date.now();
-    if (now - dkLast < 500) { if (!dkTimer) dkTimer = setTimeout(() => { dkTimer = 0; schedule(); }, 550); return; }
+    if (now - dkLast < 1000) { if (!dkTimer) dkTimer = setTimeout(() => { dkTimer = 0; schedule(); }, 1050); return; }
     dkLast = now;
-    for (const card of cards) for (const e of [card, ...card.querySelectorAll('*')]) {
-      if (dkSeen.has(e)) continue;
-      dkSeen.add(e);
-      if (e instanceof SVGElement || PAINT_SKIP.has(e.tagName) || e.closest(DK_SKIP)) continue;
-      const cs = getComputedStyle(e);
-      const bg = parseRGB(cs.backgroundColor);
-      // אלמנטים שהעיצוב שלנו כבר צובע (בועות, רקע, תיבת כתיבה). הסימונים של הירוק/הכהה/החלון לא נחשבים
-      const ours = [...e.classList].some((c) => c.startsWith('wa-') && !/^wa-(acc|dk-|card|navsel|navtxt)/.test(c));
-      // (לא הבועה המקורית של גוגל - ההורה הישיר של ההודעה - שמקבלת את הצבע שלה מהעיצוב של הבועות)
-      if (!ours && bg && bg.a > 0.5 && lum(bg) > 200 && !e.querySelector(':scope > ' + SEL.message)) addCls(e, e.closest('.wa-compose') ? 'wa-dk-in' : 'wa-dk-bg');
-      if (!ours) {
-        const bd = ['Top', 'Right', 'Bottom', 'Left'].some((s) => parseFloat(cs['border' + s + 'Width']) > 0 && (parseRGB(cs['border' + s + 'Color']) || { r: 0, g: 0, b: 0 }).r > 150);
-        if (bd) addCls(e, 'wa-dk-bd');
-        const sh = cs.boxShadow !== 'none' && firstColor(cs.boxShadow);
-        if (sh && sh.a > 0.2 && lum(sh) > 150) addCls(e, 'wa-dk-sh');
-        const psh = ['::before', '::after'].some((p) => { const v = getComputedStyle(e, p).boxShadow; const c = v !== 'none' && firstColor(v); return c && c.a > 0.2 && lum(c) > 150; });
-        if (psh) addCls(e, 'wa-dk-psh');   // למשל הקו הבהיר מעל תיבת הכתיבה
-      }
-      const fg = parseRGB(cs.color);
-      if (fg && Math.max(fg.r, fg.g, fg.b) - Math.min(fg.r, fg.g, fg.b) < 60) {   // רק אפורים/שחורים - קישורים צבעוניים נשארים
-        const l = lum(fg);
-        if (l < 90) addCls(e, 'wa-dk-tx');
-        else if (l < 150) addCls(e, 'wa-dk-sub');
-      }
+    for (const card of cards) {
+      const walk = document.createTreeWalker(card, NodeFilter.SHOW_ELEMENT, {
+        acceptNode: (n) => (n instanceof SVGElement || PAINT_SKIP.has(n.tagName) || n.classList.contains('wa-bubble')
+          ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+      });
+      for (let e = card; e; e = walk.nextNode()) if (!dkSeen.has(e)) { dkSeen.add(e); dkQueue.push(e); }
+    }
+    darkWork(null);
+  }
+  function darkWork(deadline) {
+    const dark = document.documentElement.getAttribute('data-wa-dark') === 'true';
+    const budget = deadline ? Math.min(deadline.timeRemaining(), 10) : (dark ? 10 : 0);   // במצב בהיר רק בזמן פנוי
+    const until = performance.now() + budget;
+    while (dkHead < dkQueue.length && performance.now() < until) darkOne(dkQueue[dkHead++]);
+    if (dkHead >= dkQueue.length) { dkQueue = []; dkHead = 0; }
+    else if (!dkIdle && !stopped) dkIdle = idle((d) => { dkIdle = 0; darkWork(d); });
+  }
+  function darkOne(e) {
+    if (!e.isConnected || e.closest(DK_SKIP)) return;
+    const cs = getComputedStyle(e);
+    const bg = parseRGB(cs.backgroundColor);
+    // אלמנטים שהעיצוב שלנו כבר צובע (בועות, רקע, תיבת כתיבה). הסימונים של הירוק/הכהה/החלון לא נחשבים
+    const ours = [...e.classList].some((c) => c.startsWith('wa-') && !/^wa-(acc|dk-|card|navsel|navtxt)/.test(c));
+    // (לא הבועה המקורית של גוגל - ההורה הישיר של ההודעה - שמקבלת את הצבע שלה מהעיצוב של הבועות)
+    if (!ours && bg && bg.a > 0.5 && lum(bg) > 200 && !e.querySelector(':scope > ' + SEL.message)) addCls(e, e.closest('.wa-compose') ? 'wa-dk-in' : 'wa-dk-bg');
+    if (!ours) {
+      const bd = ['Top', 'Right', 'Bottom', 'Left'].some((s) => parseFloat(cs['border' + s + 'Width']) > 0 && (parseRGB(cs['border' + s + 'Color']) || { r: 0, g: 0, b: 0 }).r > 150);
+      if (bd) addCls(e, 'wa-dk-bd');
+      const sh = cs.boxShadow !== 'none' && firstColor(cs.boxShadow);
+      if (sh && sh.a > 0.2 && lum(sh) > 150) addCls(e, 'wa-dk-sh');
+      const psh = ['::before', '::after'].some((p) => { const v = getComputedStyle(e, p).boxShadow; const c = v !== 'none' && firstColor(v); return c && c.a > 0.2 && lum(c) > 150; });
+      if (psh) addCls(e, 'wa-dk-psh');   // למשל הקו הבהיר מעל תיבת הכתיבה
+    }
+    const fg = parseRGB(cs.color);
+    if (fg && Math.max(fg.r, fg.g, fg.b) - Math.min(fg.r, fg.g, fg.b) < 60) {   // רק אפורים/שחורים - קישורים צבעוניים נשארים
+      const l = lum(fg);
+      if (l < 90) addCls(e, 'wa-dk-tx');
+      else if (l < 150) addCls(e, 'wa-dk-sub');
     }
   }
 
   // הכחול של גוגל בחלון השיחה, מחוץ לאזור ההודעות (סרגל עליון, תיבת כתיבה, חלונית השרשור, תוויות צפות).
   // נבדק מחדש בכל סבב (בהשהיה), כי "נבחר"/"לא נבחר" משתנה - והצבע המקורי לא נדרס, אז אפשר לקרוא אותו שוב.
   let accLast = 0, accTimer = 0;
+  const accPseudo = new WeakSet();   // שכבת ה-::before של גוגל נבדקת פעם אחת לכל אלמנט
   function accentFix(cards) {
     const now = Date.now();
-    if (now - accLast < 600) { if (!accTimer) accTimer = setTimeout(() => { accTimer = 0; schedule(); }, 650); return; }
+    if (now - accLast < 1000) { if (!accTimer) accTimer = setTimeout(() => { accTimer = 0; schedule(); }, 1050); return; }
     accLast = now;
     cards.forEach(accentCard);
   }
@@ -1087,7 +1110,8 @@
       setCls(e, 'wa-acc-l', light);
       setCls(e, 'wa-acc', strong);
       setCls(e, 'wa-acc-tx', !!fg && fg.b - fg.r >= 60 && lum(fg) < 160);
-      if (!e.classList.contains('wa-acc-b') && !e.classList.contains('wa-compose')) {   // (הכדור של תיבת הכתיבה נשאר לבן)
+      if (!accPseudo.has(e) && !e.classList.contains('wa-compose')) {   // (הכדור של תיבת הכתיבה נשאר לבן)
+        accPseudo.add(e);
         const b = getComputedStyle(e, '::before');
         if (b.content !== 'none') { const c = parseRGB(b.backgroundColor); if (c && c.b >= 180 && c.b - c.r >= 100) addCls(e, 'wa-acc-b'); }
       }
@@ -1336,30 +1360,34 @@
   }
 
   /* ================= הפעלה ================= */
-  let queued = false;
+  // סבב עיצוב לכל היותר פעם ב-200ms: גוגל משנה את הדף כל הזמן (שעונים, ריחוף, אנימציות),
+  // וסבב על כל שינוי תקע את הלשונית. אחרי שליחה רצים מיד (onSend), כך שההודעה עדיין נצבעת מהר.
+  const MIN_GAP = 200;
+  let queued = false, lastTag = 0;
   function schedule() {
     if (queued || stopped) return;
     queued = true;
-    requestAnimationFrame(() => { queued = false; tag(); });
+    setTimeout(() => { queued = false; lastTag = Date.now(); tag(); }, Math.max(16, MIN_GAP - (Date.now() - lastTag)));
   }
 
   // גוגל מציירת מחדש בועות (למשל כשהשרת מאשר הודעה ששלחתי) ומוחקת את הסימון שלנו בלי להוסיף אלמנט -
-  // לכן מאזינים גם להסרה של המחלקות/התכונות שלנו (ורק להסרה, כדי שהשינויים שלנו עצמנו לא יפעילו סבב נוסף)
-  const lostOurs = (m) => {
-    if (m.attributeName === 'class') {
-      const now = m.target.getAttribute('class') || '';
-      return (m.oldValue || '').split(/\s+/).some((c) => c.startsWith('wa-') && !now.includes(c));
-    }
-    return m.oldValue !== null && !m.target.hasAttribute(m.attributeName);
-  };
+  // לכן מאזינים גם להסרה של התכונות שלנו מהבועות (ורק להסרה, כדי שהשינויים שלנו עצמנו לא יפעילו סבב נוסף)
+  const OUR_NODES = '.wa-meta, .wa-mmeta, .wa-ticks, .wa-darkbtn';
   const observer = new MutationObserver((ms) => {
     for (const m of ms) {
-      if (m.type === 'childList' || m.attributeName === 'data-user-id' || m.attributeName === 'data-theme' || lostOurs(m)) { schedule(); return; }
+      if (m.type === 'childList') {
+        const t = m.target;
+        if (t.nodeType === 1 && t.closest && t.closest(OUR_NODES)) continue;   // השעה/הוי וי שלנו
+        schedule(); return;
+      }
+      if (m.attributeName === 'data-user-id' || m.attributeName === 'data-theme') { schedule(); return; }
+      if (m.attributeName === 'disabled') { if (m.target.closest && m.target.closest('.wa-sendgrp')) { schedule(); return; } continue; }   // כפתור השליחה הופעל/הושבת
+      if (m.oldValue !== null && !m.target.hasAttribute(m.attributeName)) { schedule(); return; }
     }
   });
   observer.observe(document.documentElement, {
     subtree: true, childList: true, attributes: true, attributeOldValue: true,
-    attributeFilter: ['data-user-id', 'data-theme', 'class', 'data-wa-own', 'data-wa-tail'],
+    attributeFilter: ['data-user-id', 'data-theme', 'data-wa-own', 'data-wa-tail', 'disabled'],
   });
 
   // זיהוי שליחה: מריצים את העיצוב כמה פעמים מיד אחרי השליחה, כדי שההודעה החדשה תצבע בלי לחכות
@@ -1376,6 +1404,9 @@
     [30, 150, 400, 900, 2000].forEach((ms) => setTimeout(tag, ms));
   }
   document.addEventListener('keydown', onSend, true);
+  // הקלדה משנה טקסט קיים (לא מוסיפה אלמנטים), אז ה-observer לא רואה אותה - צריך בשביל העיגול הירוק (מיקרופון/שליחה)
+  const onInput = (e) => { if (e.target && e.target.closest && e.target.closest(SEL.composer)) schedule(); };
+  document.addEventListener('input', onInput, true);
   document.addEventListener('click', onSend, true);
   // תמונה שנטענה אחרי שההודעה כבר הוצגה (עד אז הגודל שלה 0 ואי אפשר למסגר אותה)
   const onMediaLoad = (e) => { if (e.target && (e.target.tagName === 'IMG' || e.target.tagName === 'VIDEO')) schedule(); };
@@ -1386,7 +1417,10 @@
   window.addEventListener('storage', onStorage);
   // "נקרא": גוגל מחזיקה אווטאר מוסתר ליד כל הודעה ורק מחליפה איזה מהם גלוי (שינוי עיצוב, לא הוספת אלמנט),
   // כך שה-MutationObserver לא מתעורר כשהצד השני קורא בלי לענות. בדיקה קבועה כל 2 שניות (רק כשהלשונית גלויה).
-  const readPoll = setInterval(() => { if (!document.hidden) schedule(); }, 2000);
+  // רק כשיש הודעה שלי שעוד לא נקראה (VV אפורים) - אחרת אין מה לבדוק
+  const readPoll = setInterval(() => {
+    if (!document.hidden && document.querySelector('.wa-tk[data-state="sent"]:not([data-hidden])')) schedule();
+  }, 2500);
   applyDark();
   // הרקע הכהה מוכן מראש (כשהדפדפן פנוי), כדי שהמעבר לכהה לא יחכה לחישוב התמונה
   (window.requestIdleCallback || ((f) => setTimeout(f, 1500)))(() => { if (!stopped) makeDarkBg(); });
@@ -1511,6 +1545,7 @@
     document.querySelectorAll('.wa-darkbtn').forEach((x) => x.remove());
     document.documentElement.style.removeProperty('--wa-img-dark');
     document.removeEventListener('keydown', onSend, true);
+    document.removeEventListener('input', onInput, true);
     document.removeEventListener('click', onSend, true);
     document.removeEventListener('load', onMediaLoad, true);
     document.removeEventListener('loadedmetadata', onMediaLoad, true);
