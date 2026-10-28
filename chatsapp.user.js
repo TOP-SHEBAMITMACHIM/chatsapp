@@ -195,6 +195,13 @@
 
   /* ---- האווטאר של "נקרא" של גוגל: מוסתר (הוי וי עברו לתוך הבועה, ליד השעה) ---- */
   .wa-seen { visibility: hidden !important; pointer-events: none !important; }   /* לא display:none - זה גורם לגוגל לבנות מחדש את האלמנט (ריצוד) */
+  /* האווטאר של "נקרא" (והטבעת סביבו) מוסתר כבר ב-CSS, מהפריים הראשון - בלי לחכות לסקריפט, אחרת כשנכנסים לשיחה
+     רואים אותו לרגע לפני שהוא מתחלף ל-VV. מזהים אותו לפי data-hide-hovercard (רק לו יש את זה); מוסתר ולא מוסר,
+     כך שהסקריפט עדיין מוצא אותו ומודד אותו */
+  :is([jsname="iyUusd"], .wa-scroller) [data-member-id][data-hide-hovercard]:not(button *, [role="tooltip"] *, [role="dialog"] *),
+  :is([jsname="iyUusd"], .wa-scroller) :is([jsname="A6ktte"], [jsname="r1RgJc"]):has([data-member-id][data-hide-hovercard]):not(:has([jsname="bgckF"])) {
+    visibility: hidden !important;
+  }
   .wa-bubble .wa-seen { position: absolute !important; }
   .wa-seen::before, .wa-seen::after { display: none !important; content: none !important; }
 
