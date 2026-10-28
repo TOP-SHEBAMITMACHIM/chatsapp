@@ -1,14 +1,15 @@
-// ChatsApp 1.2.1 - נבנה אוטומטית מ-chatsapp.user.js (לא לערוך כאן)
+// ChatsApp 1.3.0 - נבנה אוטומטית מ-chatsapp.user.js (לא לערוך כאן)
 // ==UserScript==
 // @name         ChatsApp – וואטסאפ לגוגל צ'אט
 // @namespace    chatsapp
-// @version      1.2.1
-// @description  גוגל צ'אט בעיצוב וואטסאפ: בועות ירוקות/לבנות עם זנב, שעה ו-VV בתוך הבועה, ציטוטים, מסגרות לתמונות ורקע הוואטסאפ המקורי
+// @version      1.3.0
+// @description  גוגל צ'אט בעיצוב וואטסאפ: בועות ירוקות/לבנות עם זנב, שעה ו-VV בתוך הבועה, ציטוטים, מסגרות לתמונות, רקע הוואטסאפ המקורי ומצב כהה
 // @homepageURL  https://github.com/TOP-SHEBAMITMACHIM/chatsapp
 // @downloadURL  https://raw.githubusercontent.com/TOP-SHEBAMITMACHIM/chatsapp/main/chatsapp.user.js
 // @updateURL    https://raw.githubusercontent.com/TOP-SHEBAMITMACHIM/chatsapp/main/chatsapp.user.js
 // @match        https://chat.google.com/*
 // @match        https://mail.google.com/chat/*
+// @match        https://mail.google.com/mail/*
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
@@ -16,10 +17,80 @@
 (function () {
   'use strict';
 
-  chatsappMain();
+  /* ================= אייקונים ירוקים בצד (משותף לצ'אט ול-Gmail) ================= */
+  // פס האפליקציות (יומן, Keep, משימות, אנשי קשר) והפס של Gmail (דואר, צ'אט, Meet): האייקונים של גוגל הם תמונות,
+  // אז הם נצבעים במסנן SVG: הצורה בירוק, וחלקים בהירים בתוך האייקון (למשל המספר ביומן) נשארים שקופים למחצה.
+  // השורה הנבחרת ברשימת הצ'אטים ובפס של Gmail: ירוק בהיר במקום התכלת של גוגל. שמות מרחבים בירוק.
+  const ICON_GREEN = '#008069', ICON_SEL = '#d9fdd3', ICON_SEL_TEXT = '#00684a';
+  const ICON_CSS = `
+  .wa-ico, .wa-ico-b::before { filter: url(#wa-green) !important; }
+  .wa-navsel { box-shadow: inset 0 0 0 100vmax ${ICON_SEL} !important; }
+  .wa-navsel, .wa-navsel *, .wa-navtxt { -webkit-text-fill-color: ${ICON_SEL_TEXT}; }
+  [data-group-id^="space/"][role="listitem"] [jsname="dfY7oc"] { -webkit-text-fill-color: ${ICON_GREEN}; }
+  `;
+  // הצבע עצמו לא נדרס (רק צל פנימי ו-text-fill), כך שאפשר להמשיך לקרוא מה גוגל מסמנת כנבחר
+  const rgbOf = (c) => { const m = c && c.match(/rgba?\(([^)]+)\)/); if (!m) return null; const p = m[1].split(/[ ,\/]+/).filter(Boolean).map(Number); return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 }; };
+  const isSelBg = (c) => !!c && c.a > 0.5 && c.b >= 235 && c.r >= 170 && c.b - c.r >= 15;          // התכלת של "נבחר"
+  const isSelText = (c) => !!c && c.b - c.r >= 60 && (c.r * 0.299 + c.g * 0.587 + c.b * 0.114) < 140;  // טקסט כחול כהה
+  function greenFilter() {
+    if (document.getElementById('wa-green') || !document.body) return;
+    const NS = 'http://www.w3.org/2000/svg', el = (t, a) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); return e; };
+    const svg = el('svg', { width: '0', height: '0', 'aria-hidden': 'true', style: 'position:absolute;width:0;height:0', class: 'wa-filters' });
+    const f = el('filter', { id: 'wa-green', 'color-interpolation-filters': 'sRGB' });
+    f.appendChild(el('feColorMatrix', { type: 'matrix', result: 'a', values: '0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -0.3 -0.59 -0.11 1.25 0' }));
+    f.appendChild(el('feFlood', { 'flood-color': ICON_GREEN, result: 'c' }));
+    f.appendChild(el('feComposite', { in: 'c', in2: 'a', operator: 'in' }));
+    svg.appendChild(f);
+    document.body.appendChild(svg);
+  }
+  let iconsLast = 0, iconsTimer = 0;
+  function iconsFix() {
+    const now = Date.now();
+    if (now - iconsLast < 700) { if (!iconsTimer) iconsTimer = setTimeout(() => { iconsTimer = 0; iconsFix(); }, 750); return; }
+    iconsLast = now;
+    greenFilter();
+    document.querySelectorAll('[id^="gsc-gab-"] *').forEach((e) => {
+      if (!e.classList.contains('wa-ico') && /url\(/.test(getComputedStyle(e).backgroundImage)) e.classList.add('wa-ico');
+    });
+    document.querySelectorAll('.V6, [jsname="hSRGPd"]').forEach((e) => {
+      if (!e.classList.contains('wa-ico-b') && /url\(/.test(getComputedStyle(e, '::before').backgroundImage)) e.classList.add('wa-ico-b');
+    });
+    const cand = document.querySelectorAll('[jsname="yPINCb"] [jsname], [jsname="yPINCb"] [role], .V6');   // רשימת הצ'אטים + הפס של Gmail (לא רשימת התיקיות של הדואר)
+    cand.forEach((e) => {
+      const cs = getComputedStyle(e);
+      const sel = isSelBg(rgbOf(cs.backgroundColor));
+      if (sel !== e.classList.contains('wa-navsel')) e.classList.toggle('wa-navsel', sel);
+      const tx = isSelText(rgbOf(cs.color));
+      if (tx !== e.classList.contains('wa-navtxt')) e.classList.toggle('wa-navtxt', tx);
+    });
+  }
+  function iconsCleanup() {
+    clearTimeout(iconsTimer); iconsTimer = 0;
+    document.querySelectorAll('.wa-ico, .wa-ico-b, .wa-navsel, .wa-navtxt').forEach((e) => e.classList.remove('wa-ico', 'wa-ico-b', 'wa-navsel', 'wa-navtxt'));
+    document.querySelectorAll('svg.wa-filters').forEach((e) => e.remove());
+  }
+
+  // בדף של Gmail עצמו רק האייקונים שבצד; הצ'אט שבתוך Gmail נטען ב-iframe של chat.google.com ומעוצב שם במלואו
+  if (location.hostname === 'mail.google.com' && !location.pathname.startsWith('/chat')) gmailMain();
+  else chatsappMain();
+
+  function gmailMain() {
+    const W = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
+    if (W.waStop) { try { W.waStop(); } catch (e) {} }
+    const st = document.createElement('style');
+    const n = document.querySelector('style[nonce]');
+    if (n && n.nonce) st.nonce = n.nonce;
+    st.textContent = ICON_CSS;
+    document.head.appendChild(st);
+    const mo = new MutationObserver(iconsFix);
+    mo.observe(document.body || document.documentElement, { subtree: true, childList: true });
+    document.addEventListener('click', iconsFix, true);
+    iconsFix();
+    W.waStop = () => { mo.disconnect(); document.removeEventListener('click', iconsFix, true); st.remove(); iconsCleanup(); delete W.waStop; };
+  }
 
   function chatsappMain() {
-  const VERSION = '1.2.1';
+  const VERSION = '1.3.0';
   const W = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
   if (W.waStop) { try { W.waStop(); } catch (e) {} }
 
@@ -61,6 +132,7 @@
     '" stroke-opacity="' + op + '" stroke-width="1.5"><circle cx="20" cy="20" r="6"/><path d="M50 14l8 8m0-8l-8 8"/>' +
     '<rect x="12" y="52" width="12" height="12" rx="3"/><path d="M52 56q6-8 12 0t12 0"/></g></svg>');
   const SVG_LIGHT = svgRaw('#808080', '.14');   // גיבוי, אם מסנן תוכן חוסם את התמונה
+  const SVG_DARK = svgRaw('#ffffff', '.06');
 
   // זנב הבועה: הצד נקבע לפי כיוון הממשק. בעברית (RTL) ההודעות שלי משמאל והנכנסות מימין; באנגלית להפך.
   const TAIL_BASE = '.wa-bubble[data-wa-tail="true"]';
@@ -171,6 +243,7 @@
   html[data-wa-ticks="whatsapp"] .wa-meta > .wa-tk { order: 2; }
   .wa-tk { display: inline-block; flex: none; width: 16px; height: 10px; color: ${TICK_SENT}; overflow: visible; }
   .wa-tk[data-state="read"] { color: ${TICK_READ}; }
+  .wa-tk:not([data-state="read"]) path + path { display: none; }              /* עד שנקרא: V אחד אפור (בגוגל צ'אט אין מצב "הגיע") */
   .wa-tk[data-hidden="true"] { display: none; }
   .wa-time:empty { display: none; }
 
@@ -277,6 +350,39 @@
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-thumb { background: rgba(134,150,160,.45); border-radius: 3px; }
   ::-webkit-scrollbar-track { background: transparent; }
+
+  /* ---- מצב כהה: רק בתוך חלון השיחה (הרשימה והסרגלים נשארים בהירים) ---- */
+  html[data-wa-dark="true"] .wa-card {
+    --wa-bg:#0b141a; --wa-img:var(--wa-img-dark, none); --wa-img-svg:url("${SVG_DARK}");
+    --wa-in:#202c33; --wa-out:#005c4b;
+    --wa-text:#e9edef; --wa-sub:#8696a0;
+    --wa-panel:#182229; --wa-hover:#202c33; --wa-border:#222d34;
+    --wa-input:#2a3942; --wa-link:#53bdeb; --wa-footer:#202c33;
+    --wa-quote-bg:rgba(0,0,0,.22); --wa-quote-bar:#8696a0;
+    --wa-shadow:0 1px .5px rgba(0,0,0,.4);
+    color: var(--wa-text);
+  }
+  /* משטחים וטקסט של גוגל בתוך החלון (סרגל השם, תיבת הכתיבה, הודעות מערכת...) - מסומנים פעם אחת לפי הצבע שלהם.
+     ספציפיות נמוכה בכוונה, כדי שהעיצוב של הבועות/המסגרות תמיד יגבר */
+  :where(html[data-wa-dark="true"]) .wa-dk-bg { background-color: var(--wa-footer) !important; }
+  :where(html[data-wa-dark="true"]) .wa-dk-in { background-color: var(--wa-input) !important; }
+  :where(html[data-wa-dark="true"]) .wa-dk-tx { color: var(--wa-text) !important; }
+  :where(html[data-wa-dark="true"]) .wa-dk-sub { color: var(--wa-sub) !important; }
+  :where(html[data-wa-dark="true"]) .wa-dk-bd { border-color: var(--wa-border) !important; }
+  :where(html[data-wa-dark="true"]) .wa-dk-sh { box-shadow: none !important; }
+  :where(html[data-wa-dark="true"]) .wa-dk-psh::before, :where(html[data-wa-dark="true"]) .wa-dk-psh::after { box-shadow: none !important; }
+  html[data-wa-dark="true"] .wa-card ::placeholder { color: var(--wa-sub) !important; }
+
+  /* כפתור הירח בסרגל העליון של השיחה */
+  .wa-darkbtn {
+    display: inline-flex; align-items: center; justify-content: center; flex: none; box-sizing: border-box;
+    width: 40px; height: 40px; border-radius: 50%; cursor: pointer; color: var(--wa-sub); margin: 0 2px;
+  }
+  .wa-darkbtn:hover { background: rgba(0,0,0,.06); }
+  html[data-wa-dark="true"] .wa-darkbtn:hover { background: rgba(255,255,255,.08); }
+  .wa-darkbtn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  html[data-wa-dark="true"] .wa-darkbtn svg { fill: currentColor; }
+  ${ICON_CSS}
   `;
 
   function addStyle(text) {
@@ -715,6 +821,132 @@
     }
   }
 
+  /* ================= מצב כהה (רק בתוך חלון השיחה) ================= */
+  // ההגדרה נשמרת ב-localStorage של chat.google.com, כך שהיא משותפת לאתר הצ'אט ולצ'אט שבתוך Gmail
+  const DARK_KEY = 'chatsapp-dark';
+  const darkOn = () => { try { return localStorage.getItem(DARK_KEY) === '1'; } catch (e) { return false; } };
+  function applyDark() {
+    const on = darkOn();
+    setAttr(document.documentElement, 'data-wa-dark', String(on));
+    if (on) makeDarkBg();
+    document.querySelectorAll('.wa-darkbtn').forEach((b) => {
+      const t = on ? 'מצב בהיר' : 'מצב כהה';
+      if (b.title !== t) { b.title = t; b.setAttribute('aria-label', t); }
+      setAttr(b, 'aria-pressed', String(on));
+    });
+  }
+  function toggleDark() {
+    try { localStorage.setItem(DARK_KEY, darkOn() ? '0' : '1'); } catch (e) {}
+    applyDark();
+    schedule();
+  }
+  const onStorage = (e) => { if (e.key === DARK_KEY) { applyDark(); schedule(); } };   // שינוי בחלון/לשונית אחרים
+
+  // הרקע הכהה: אותה דוגמה של וואטסאפ, מחושבת מהתמונה הבהירה (רקע כהה, ציורים אפורים עמומים)
+  function makeDarkBg() {
+    if (makeDarkBg.started) return;
+    makeDarkBg.started = true;
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const c = document.createElement('canvas');
+        c.width = img.naturalWidth; c.height = img.naturalHeight;
+        const x = c.getContext('2d');
+        x.drawImage(img, 0, 0);
+        const d = x.getImageData(0, 0, c.width, c.height), p = d.data, hist = new Uint32Array(256);
+        for (let i = 0; i < p.length; i += 4) hist[(p[i] * 0.299 + p[i + 1] * 0.587 + p[i + 2] * 0.114) | 0]++;
+        let bgL = 0, lo = 0, acc = 0;
+        for (let l = 0; l < 256; l++) if (hist[l] > hist[bgL]) bgL = l;                      // צבע הרקע = הנפוץ ביותר
+        for (let l = 0; l < 256; l++) { acc += hist[l]; if (acc > p.length / 4 * 0.02) { lo = l; break; } }   // הקווים הכהים ביותר
+        const BG = [11, 20, 26], FG = [44, 58, 66], span = Math.max(1, bgL - lo);
+        for (let i = 0; i < p.length; i += 4) {
+          const l = p[i] * 0.299 + p[i + 1] * 0.587 + p[i + 2] * 0.114;
+          const t = Math.max(0, Math.min(1, (bgL - l) / span));
+          p[i] = BG[0] + (FG[0] - BG[0]) * t; p[i + 1] = BG[1] + (FG[1] - BG[1]) * t; p[i + 2] = BG[2] + (FG[2] - BG[2]) * t; p[i + 3] = 255;
+        }
+        x.putImageData(d, 0, 0);
+        if (!stopped) document.documentElement.style.setProperty('--wa-img-dark', 'url("' + c.toDataURL('image/webp', 0.9) + '")');
+      } catch (e) { tag.error = 'darkbg: ' + e; }
+    };
+    img.src = IMG_LIGHT;
+  }
+
+  // "חלון השיחה" = המלבן המעוגל החיצוני שמכיל את סרגל השם, ההודעות, תיבת הכתיבה וכפתורי הנעיצה/השרשורים
+  // (יש שני מעוגלים מקוננים; לוקחים את החיצוני, אבל לא משהו שמכיל גם את רשימת הצ'אטים)
+  function cardOf(main) {
+    let card = main;
+    for (let n = main, k = 0; n && n !== document.body && k < 8; n = n.parentElement, k++) {
+      if (n.querySelector(SEL.sidebar) || n.querySelector(SEL.header)) break;
+      if (parseFloat(getComputedStyle(n).borderTopLeftRadius) >= 16) card = n;
+    }
+    return card;
+  }
+  // הצבע הראשון בערך CSS (גם בכתיב color(srgb ...) שכרום משתמש בו בצללים)
+  function firstColor(v) {
+    const m = v && v.match(/rgba?\([^)]+\)|color\(srgb [^)]+\)/);
+    if (!m) return null;
+    if (m[0][0] === 'r') return parseRGB(m[0]);
+    const p = m[0].slice(11, -1).split(/[ \/]+/).filter(Boolean).map(Number);
+    return { r: p[0] * 255, g: p[1] * 255, b: p[2] * 255, a: p.length > 3 ? p[3] : 1 };
+  }
+  // כפתור ירח ליד כפתור שיחת הווידאו שבסרגל העליון של השיחה
+  const MOON = 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z';
+  function darkButton(card) {
+    if (!card || card.querySelector('.wa-darkbtn')) return;
+    const vid = [...card.querySelectorAll('button[aria-label], [role="button"][aria-label]')]
+      .find((b) => /וידאו|video/i.test(b.getAttribute('aria-label')));
+    if (!vid) return;
+    let at = vid;
+    while (at.parentElement && at.parentElement !== card && at.parentElement.childElementCount === 1) at = at.parentElement;
+    const btn = document.createElement('div');
+    btn.className = 'wa-darkbtn';
+    btn.setAttribute('role', 'button');
+    btn.tabIndex = 0;
+    const svg = document.createElementNS(SVGNS, 'svg'), path = document.createElementNS(SVGNS, 'path');
+    svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true');
+    path.setAttribute('d', MOON);
+    svg.appendChild(path); btn.appendChild(svg);
+    btn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); toggleDark(); });
+    btn.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleDark(); } });
+    at.parentElement.insertBefore(btn, at);
+    applyDark();
+  }
+
+  // צביעת משטחים וטקסט של גוגל בתוך החלון. כל אלמנט נבדק פעם אחת (כשהוא מופיע), כך שזה זול גם בשיחה ארוכה.
+  const dkSeen = new WeakSet();
+  const DK_SKIP = '.wa-darkbtn, [role="menu"], [role="dialog"], [role="tooltip"], [role="listbox"], ' + SEL.toolbar;
+  let dkLast = 0, dkTimer = 0;
+  function darkFix(card) {
+    if (!card || document.documentElement.getAttribute('data-wa-dark') !== 'true') return;
+    const now = Date.now();
+    if (now - dkLast < 500) { if (!dkTimer) dkTimer = setTimeout(() => { dkTimer = 0; schedule(); }, 550); return; }
+    dkLast = now;
+    for (const e of card.querySelectorAll('*')) {
+      if (dkSeen.has(e)) continue;
+      dkSeen.add(e);
+      if (e instanceof SVGElement || PAINT_SKIP.has(e.tagName) || e.closest(DK_SKIP)) continue;
+      const cs = getComputedStyle(e);
+      const bg = parseRGB(cs.backgroundColor);
+      const ours = [...e.classList].some((c) => c.startsWith('wa-'));
+      // (לא הבועה המקורית של גוגל - ההורה הישיר של ההודעה - שמקבלת את הצבע שלה מהעיצוב של הבועות)
+      if (!ours && bg && bg.a > 0.5 && lum(bg) > 200 && !e.querySelector(':scope > ' + SEL.message)) addCls(e, e.closest('.wa-compose') ? 'wa-dk-in' : 'wa-dk-bg');
+      if (!ours) {
+        const bd = ['Top', 'Right', 'Bottom', 'Left'].some((s) => parseFloat(cs['border' + s + 'Width']) > 0 && (parseRGB(cs['border' + s + 'Color']) || { r: 0, g: 0, b: 0 }).r > 150);
+        if (bd) addCls(e, 'wa-dk-bd');
+        const sh = cs.boxShadow !== 'none' && firstColor(cs.boxShadow);
+        if (sh && sh.a > 0.2 && lum(sh) > 150) addCls(e, 'wa-dk-sh');
+        const psh = ['::before', '::after'].some((p) => { const v = getComputedStyle(e, p).boxShadow; const c = v !== 'none' && firstColor(v); return c && c.a > 0.2 && lum(c) > 150; });
+        if (psh) addCls(e, 'wa-dk-psh');   // למשל הקו הבהיר מעל תיבת הכתיבה
+      }
+      const fg = parseRGB(cs.color);
+      if (fg && Math.max(fg.r, fg.g, fg.b) - Math.min(fg.r, fg.g, fg.b) < 60) {   // רק אפורים/שחורים - קישורים צבעוניים נשארים
+        const l = lum(fg);
+        if (l < 90) addCls(e, 'wa-dk-tx');
+        else if (l < 150) addCls(e, 'wa-dk-sub');
+      }
+    }
+  }
+
   // של מי ההודעה - לפי הצד שבו גוגל מציגה אותה: בעברית ההודעות שלי בצד שמאל, באנגלית בצד ימין.
   // הצד ידוע מהרגע שההודעה מופיעה (גם לפני שהשרת אישר אותה), ולכן הצבע נכון מיד.
   // null = אי אפשר לדעת (ההודעה לא מוצגת, או באמצע - למשל הודעת מערכת)
@@ -915,6 +1147,11 @@
     try { frameMedia(oneSided, seenSlots); } catch (e) { tag.error = 'media: ' + e; }
     try { voiceBoxes(oneSided); } catch (e) { tag.error = 'voice: ' + e; }
     try { boxMeta(seenSlots); } catch (e) { tag.error = 'boxmeta: ' + e; }
+    try {
+      const main = document.querySelector('.wa-main'), card = main && cardOf(main);
+      if (card) { addCls(card, 'wa-card'); darkButton(card); darkFix(card); }
+    } catch (e) { tag.error = 'dark: ' + e; }
+    try { iconsFix(); } catch (e) { tag.error = 'icons: ' + e; }
     tag.last = { total: msgs.length, seenCount, readUpTo: readIdx, state, seenSlots: seenSlots.length };
   }
 
@@ -951,6 +1188,8 @@
   document.addEventListener('loadedmetadata', onMediaLoad, true);
 
   window.addEventListener('resize', schedule);
+  window.addEventListener('storage', onStorage);
+  applyDark();
   pickBackground();
   tag();
 
@@ -1064,6 +1303,11 @@
     stopped = true;
     observer.disconnect();
     window.removeEventListener('resize', schedule);
+    window.removeEventListener('storage', onStorage);
+    clearTimeout(dkTimer);
+    iconsCleanup();
+    document.querySelectorAll('.wa-darkbtn').forEach((x) => x.remove());
+    document.documentElement.style.removeProperty('--wa-img-dark');
     document.removeEventListener('keydown', onSend, true);
     document.removeEventListener('click', onSend, true);
     document.removeEventListener('load', onMediaLoad, true);
@@ -1076,7 +1320,7 @@
       if (x.hasAttribute('data-wa-fit')) { x.removeAttribute('data-wa-fit'); ['margin-left', 'margin-right', 'margin-top'].forEach((p) => x.style.removeProperty(p)); }
     });
     if (styleEl && styleEl.remove) styleEl.remove();
-    ['data-wa-rtl', 'data-wa-ticks', 'data-wa-bg', 'data-chatsapp-version'].forEach((a) => document.documentElement.removeAttribute(a));
+    ['data-wa-rtl', 'data-wa-ticks', 'data-wa-bg', 'data-wa-dark', 'data-chatsapp-version'].forEach((a) => document.documentElement.removeAttribute(a));
     delete W.waDebug; delete W.waExport; delete W.waSeen; delete W.waGroups; delete W.waQuote; delete W.waTime; delete W.waBg; delete W.waBox; delete W.waStop;
   };
   }   // chatsappMain

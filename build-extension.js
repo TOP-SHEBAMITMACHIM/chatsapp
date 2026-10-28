@@ -29,7 +29,8 @@ const manifest = {
   minimum_chrome_version: '111',                      // world: MAIN
   icons: { 16: 'icons/icon16.png', 32: 'icons/icon32.png', 48: 'icons/icon48.png', 128: 'icons/icon128.png' },
   content_scripts: [{
-    matches: ['https://chat.google.com/*', 'https://mail.google.com/chat/*'],
+    // ב-Gmail עצמו (mail/*) רק האייקונים שבצד נצבעים בירוק; הצ'אט שם הוא iframe של chat.google.com
+    matches: ['https://chat.google.com/*', 'https://mail.google.com/chat/*', 'https://mail.google.com/mail/*'],
     js: ['content.js'],
     run_at: 'document_idle',
     // בתוך Gmail הצ'אט נטען ב-iframe של chat.google.com, וכרום מריץ סקריפט תוכן רק בדף הראשי אם לא מבקשים
