@@ -31,7 +31,9 @@ const manifest = {
   icons: { 16: 'icons/icon16.png', 32: 'icons/icon32.png', 48: 'icons/icon48.png', 128: 'icons/icon128.png' },
   // החלון הקופץ: מצב כהה/בהיר וקרדיט. ההגדרה נשמרת ב-storage ומגיעה לדף דרך bridge.js
   action: { default_popup: 'popup.html', default_title: 'ChatsApp', default_icon: { 16: 'icons/icon16.png', 32: 'icons/icon32.png' } },
-  permissions: ['storage'],
+  // storage: מצב כהה; alarms + notifications: בדיקת עדכונים בגיטהאב והתראה כשיוצאת גרסה חדשה (background.js)
+  permissions: ['storage', 'alarms', 'notifications'],
+  background: { service_worker: 'background.js' },
   content_scripts: [{
     // ב-Gmail עצמו (mail/*) רק הסימון הירוק של הפריט הנבחר בפס הצד; הצ'אט שם הוא iframe של chat.google.com
     matches: MATCHES,
@@ -53,7 +55,7 @@ const manifest = {
 fs.writeFileSync(path.join(OUT, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
 
 // ---- החלון הקופץ והגשר: קבצים רגילים מ-extension-src/ ----
-const EXTRA = ['popup.html', 'popup.js', 'bridge.js', 'mitmachim.png'];
+const EXTRA = ['popup.html', 'popup.js', 'bridge.js', 'background.js', 'mitmachim.png'];
 for (const f of EXTRA) fs.copyFileSync(path.join(__dirname, 'extension-src', f), path.join(OUT, f));
 
 // ---- אייקונים: עיגול ירוק עם בועת צ'אט לבנה ו-VV, מצוירים כאן ישירות ל-PNG (בלי ספריות) ----

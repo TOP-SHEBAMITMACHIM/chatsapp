@@ -6,3 +6,15 @@ document.getElementById('ver').textContent = 'v' + chrome.runtime.getManifest().
 chrome.storage.local.get('dark', (r) => { box.checked = !!r.dark; });
 chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && ch.dark) box.checked = !!ch.dark.newValue; });
 box.addEventListener('change', () => chrome.storage.local.set({ dark: box.checked }));
+
+// גרסה חדשה (background.js בודק בגיטהאב ושומר כאן). בכל פתיחה מבקשים בדיקה טרייה
+const upd = document.getElementById('update');
+function showUpdate(u) {
+  upd.classList.toggle('show', !!u);
+  if (!u) return;
+  document.getElementById('update-title').textContent = 'יצאה גרסה ' + u.version;
+  upd.href = u.url;
+}
+chrome.storage.local.get('update', (r) => showUpdate(r.update));
+chrome.storage.onChanged.addListener((ch, area) => { if (area === 'local' && ch.update) showUpdate(ch.update.newValue); });
+chrome.runtime.sendMessage('check-update').catch(() => {});

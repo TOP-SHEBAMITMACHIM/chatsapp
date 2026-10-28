@@ -24,6 +24,12 @@
   .switch input:checked + i { background: var(--acc); }
   .switch input:checked + i::after { transform: translateX(-16px); }
   .switch input:focus-visible + i { outline: 2px solid var(--acc); outline-offset: 2px; }
+  /* גרסה חדשה זמינה */
+  .update { display: none; align-items: center; gap: 10px; padding: 10px 16px; background: #d9fdd3; color: #111b21; text-decoration: none; border-bottom: 1px solid var(--line); }
+  .update.show { display: flex; }
+  .update b { display: block; }
+  .update small { color: #008069; }
+  .update::before { content: "⬇"; flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--acc); color: #fff; display: grid; place-items: center; }
   footer { padding: 14px 16px; text-align: center; color: var(--sub); font-size: 13px; }
   .links { display: flex; justify-content: center; gap: 14px; margin-top: 10px; }
   .links a { display: inline-flex; width: 34px; height: 34px; align-items: center; justify-content: center; border-radius: 50%; color: var(--text); background: var(--line); }
@@ -38,6 +44,9 @@
     <b>ChatsApp</b>
     <span id="ver"></span>
   </header>
+  <a class="update" id="update" target="_blank" rel="noopener" href="https://github.com/TOP-SHEBAMITMACHIM/chatsapp/releases/latest">
+    <div><b id="update-title">יצאה גרסה חדשה</b><small>לחצו להורדה</small></div>
+  </a>
   <label class="row" for="dark">
     <div>מצב כהה<small>בחלון השיחה בגוגל צ'אט וב-Gmail</small></div>
     <span class="switch"><input type="checkbox" id="dark"><i></i></span>
