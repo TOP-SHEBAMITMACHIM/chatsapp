@@ -1189,6 +1189,9 @@
 
   window.addEventListener('resize', schedule);
   window.addEventListener('storage', onStorage);
+  // "נקרא": גוגל מחזיקה אווטאר מוסתר ליד כל הודעה ורק מחליפה איזה מהם גלוי (שינוי עיצוב, לא הוספת אלמנט),
+  // כך שה-MutationObserver לא מתעורר כשהצד השני קורא בלי לענות. בדיקה קבועה כל 2 שניות (רק כשהלשונית גלויה).
+  const readPoll = setInterval(() => { if (!document.hidden) schedule(); }, 2000);
   applyDark();
   pickBackground();
   tag();
@@ -1304,6 +1307,7 @@
     observer.disconnect();
     window.removeEventListener('resize', schedule);
     window.removeEventListener('storage', onStorage);
+    clearInterval(readPoll);
     clearTimeout(dkTimer);
     iconsCleanup();
     document.querySelectorAll('.wa-darkbtn').forEach((x) => x.remove());
