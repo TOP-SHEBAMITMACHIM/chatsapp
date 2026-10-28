@@ -100,6 +100,9 @@
     receipts: '[read-receipts-list="true"]',  // רשימת הקריאה של גוגל (מכילה את האווטאר של "נקרא")
     toolbar: '[jsname="zgWRWd"]',             // סרגל הפעולות שמופיע במעבר עכבר על הודעה
   };
+  // אווטארים שהם לא "נקרא": בתוך תגובת אימוג'י (כפתור) או בחלונית שקופצת במעבר עליה (מי הגיב), תפריט, חלון.
+  // (האווטארים האמיתיים של "נקרא" יושבים בתוך קבוצת ההודעה, אף פעם לא בתוך כפתור או חלונית)
+  const NOT_RECEIPT = 'button, [role="button"], [role="tooltip"], [role="dialog"], [role="menu"], [role="listbox"], [aria-haspopup], ' + SEL.toolbar;
 
   /* ================= תמונות ================= */
   // רקע הדוגמה המקורי של וואטסאפ (760x1396, WebP)
@@ -1404,6 +1407,7 @@
       scroller.querySelectorAll('[data-member-id]').forEach((h) => {
         if (h.closest(SEL.receipts)) return;                           // כבר מכוסה דרך הרשימה שלו
         if (h.closest(SEL.message)) return;                            // בתוך תוכן הודעה (למשל האווטאר של כותב בציטוט) - לא "נקרא"
+        if (h.closest(NOT_RECEIPT)) return;                            // תגובת אימוג'י / החלון שקופץ במעבר עליה (מי הגיב) - לא "נקרא"
         if (h.textContent.trim()) return;                              // יש טקסט = כפתור שם, לא אווטאר
         const w = h.offsetWidth, ht = h.offsetHeight;
         if (h.classList.contains('wa-seen') || (w > 0 && w <= 28 && ht <= 28)) cand.add(h);   // האווטאר הגדול של השולח - לא נוגעים
