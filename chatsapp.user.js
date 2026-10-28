@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ChatsApp – וואטסאפ לגוגל צ'אט
 // @namespace    chatsapp
-// @version      1.3.1
+// @version      1.3.2
 // @description  גוגל צ'אט בעיצוב וואטסאפ: בועות ירוקות/לבנות עם זנב, שעה ו-VV בתוך הבועה, ציטוטים, מסגרות לתמונות, רקע הוואטסאפ המקורי ומצב כהה
 // @homepageURL  https://github.com/TOP-SHEBAMITMACHIM/chatsapp
 // @downloadURL  https://raw.githubusercontent.com/TOP-SHEBAMITMACHIM/chatsapp/main/chatsapp.user.js
@@ -67,7 +67,7 @@
   }
 
   function chatsappMain() {
-  const VERSION = '1.3.1';
+  const VERSION = '1.3.2';
   const W = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
   if (W.waStop) { try { W.waStop(); } catch (e) {} }
 
@@ -174,7 +174,7 @@
     box-shadow: var(--wa-shadow) !important;
     color: var(--wa-text) !important;
     width: max-content !important;
-    max-width: min(${MAX_BUBBLE}px, 70vw) !important;
+    max-width: min(${MAX_BUBBLE}px, calc(var(--wa-scw, 100vw) * .75)) !important;   /* לפי רוחב אזור ההודעות - גם בחלון קטן/קופץ */
     min-width: 0 !important;
     overflow-wrap: break-word !important;
     word-break: normal !important;
@@ -372,6 +372,8 @@
   .wa-chathead svg, .wa-chathead i { color: var(--wa-head-text) !important; }
   .wa-chathead .wa-acc-l, .wa-chathead .wa-acc { box-shadow: inset 0 0 0 100vmax rgba(255,255,255,.16) !important; }
   .wa-chathead .wa-headbtn { background-color: rgba(255,255,255,.16) !important; }
+  .wa-chathead .wa-headclear { background-color: transparent !important; box-shadow: none !important; }
+  .wa-card .wa-footclear { background-color: transparent !important; box-shadow: none !important; border-color: transparent !important; }
   .wa-chathead .wa-darkbtn, .wa-darkbtn.wa-float { color: var(--wa-head-text); }
   .wa-darkbtn.wa-float { position: fixed; z-index: 3; margin: 0; }
   .wa-darkbtn.wa-float:hover { background: rgba(255,255,255,.12); }
@@ -842,7 +844,7 @@
       const time = msgTime(f);
       const timeEl = m.querySelector('.wa-time'), tk = m.querySelector('.wa-tk');
       if (timeEl.textContent !== time) timeEl.textContent = time;
-      if (f.getAttribute('data-wa-own') === 'true' && !inSpace(f)) {
+      if (f.getAttribute('data-wa-own') === 'true' && (!inSpace(f) || seenSlots.length > 0)) {   // (קבוצה: ראה ticksHere)
         const read = seenSlots.some((c) => f.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING);
         delAttr(tk, 'data-hidden');
         setAttr(tk, 'data-state', read ? 'read' : 'sent');
@@ -1084,14 +1086,18 @@
     if (!head) return;
     addCls(head, 'wa-chathead');
     // כפתורים עם רקע בהיר משלהם (למשל שיחת וידאו) - רקע לבן-שקוף על הפס
-    const btns = [];
+    // ומשטח בהיר שמכסה את רוב הפס (בחלון הקטן/הקופץ גוגל שמה שכבה כזו מעל הירוק, והשם הלבן נעלם) - שקוף
+    const btns = [], clear = [], hw = head.getBoundingClientRect().width;
     head.querySelectorAll('*').forEach((e) => {
       if (headSeen.has(e) || e instanceof SVGElement) return;
       headSeen.add(e);
       const b = parseRGB(getComputedStyle(e).backgroundColor);
-      if (b && b.a > 0.5 && lum(b) > 200 && b.g < 250) btns.push(e);
+      if (!b || b.a <= 0.5 || lum(b) <= 200) return;
+      if (e.getBoundingClientRect().width > hw * 0.6) clear.push(e);
+      else if (b.g < 250) btns.push(e);
     });
     btns.forEach((e) => addCls(e, 'wa-headbtn'));
+    clear.forEach((e) => addCls(e, 'wa-headclear'));
     const hr = head.getBoundingClientRect();
     document.querySelectorAll('[jsname="Zpe2Q"]').forEach((z) => {
       const r = z.getBoundingClientRect();
@@ -1148,6 +1154,31 @@
       const l = lum(fg);
       if (l < 90) addCls(e, 'wa-dk-tx');
       else if (l < 150) addCls(e, 'wa-dk-sub');
+    }
+  }
+
+  // האזור שמתחת להודעות כשאין תיבת כתיבה (למשל מרחב שרק מנהלים כותבים בו): גוגל שמה לוח לבן גדול
+  // ובתוכו את ההודעה "רק הבעלים והמנהלים...". הלוח החיצוני נעשה שקוף (רואים את הטפט), וההודעה עצמה נשארת
+  const footSeen = new WeakMap();   // כמה אלמנטים היו באזור בבדיקה הקודמת - בודקים שוב רק כשזה משתנה
+  function footFix(main) {
+    const sc = main.querySelector(':scope > .wa-scroller, :scope .wa-scroller');
+    if (!sc) return;
+    let after = false;
+    for (const top of main.children) {
+      if (top.contains(sc)) { after = true; continue; }
+      const n = top.getElementsByTagName('*').length;
+      if (!after || footSeen.get(top) === n) continue;
+      footSeen.set(top, n);
+      const light = (e) => { const b = parseRGB(getComputedStyle(e).backgroundColor); return !!b && b.a > 0.5 && lum(b) > 200; };
+      const walk = (e, d) => {
+        if (d > 8 || e instanceof SVGElement) return;
+        if (light(e)) {
+          if ([...e.querySelectorAll('*')].some((x) => !(x instanceof SVGElement) && light(x))) addCls(e, 'wa-footclear');
+          return;   // החיצוני ביותר בכל ענף - לא נכנסים פנימה
+        }
+        for (const c of e.children) walk(c, d + 1);
+      };
+      walk(top, 0);
     }
   }
 
@@ -1304,6 +1335,9 @@
     });
 
     lap('who');
+    // רוחב כל אזור הודעות (עדיין שלב קריאה) - הבועה מוגבלת ל-75% ממנו
+    const scW = new Map();
+    state.forEach((s) => { if (s.scroller && !scW.has(s.scroller)) scW.set(s.scroller, s.scroller.clientWidth); });
     // 2) סימון בועות, זנב, רקע
     let prevOwn = null, prevPane = null;
     for (const s of state) {
@@ -1318,6 +1352,8 @@
 
       if (s.scroller) {
         addCls(s.scroller, 'wa-scroller');
+        const w = scW.get(s.scroller);
+        if (w && s.scroller.style.getPropertyValue('--wa-scw') !== w + 'px') s.scroller.style.setProperty('--wa-scw', w + 'px');
         const main = s.scroller.closest('[role="main"]');
         if (main && !main.classList.contains('wa-main')) {
           addCls(main, 'wa-main');
@@ -1370,7 +1406,7 @@
           addCls(n, 'wa-seen'); ghosts.add(n);
         }
         // הודעת מדיה בלי בועה: הוי וי כחולים משלנו מתחת לכרטיס - רק אם הכרטיס שלי (לא מתחת לסרטון שמישהו אחר שלח)
-        if (!c.closest('.wa-bubble') && !inSpace(c)) {
+        if (!c.closest('.wa-bubble')) {
           const anchor = pickAnchor(c, scroller);
           const g = anchor && anchor.closest(SEL.group);
           const notMine = !!(g && MY_ID && g.getAttribute('data-user-id') !== MY_ID);
@@ -1399,6 +1435,9 @@
     });
 
     lap('read');
+    // VV: לא במרחב (שם "נקרא" לא אומר הרבה). אבל צ'אט קבוצתי (לא מרחב) מקבל אצל גוגל מזהה של מרחב, ושם כן מוצגים
+    // אווטארים של מי שקרא - אז אם יש כאלה בשיחה, זו קבוצה ומציגים VV
+    const ticksHere = (el) => !inSpace(el) || seenCount > 0;
     // 4) שעה + וי וי בתוך הבועה (בפינה השמאלית התחתונה), וציטוט
     state.forEach((s, i) => { try {
       if (!s.bubble || s.own === null) return;
@@ -1412,8 +1451,8 @@
       const time = msgTime(s.el);
       const timeEl = m.querySelector('.wa-time'), tk = m.querySelector('.wa-tk');
       if (timeEl.textContent !== time) timeEl.textContent = time;
-      if (s.own === true && !inSpace(s.el)) { delAttr(tk, 'data-hidden'); setAttr(tk, 'data-state', i <= readIdx ? 'read' : 'sent'); }
-      else setAttr(tk, 'data-hidden', 'true');   // הודעה של מישהו אחר, או הודעה שלי במרחב - בלי וי וי
+      if (s.own === true && ticksHere(s.el)) { delAttr(tk, 'data-hidden'); setAttr(tk, 'data-state', i <= readIdx ? 'read' : 'sent'); }
+      else setAttr(tk, 'data-hidden', 'true');   // הודעה של מישהו אחר, או הודעה שלי במרחב (לא קבוצה) - בלי וי וי
       // מצב השורה: inline = על אותה שורה עם הטקסט (הודעה קצרה); below = שורה משלה בתחתית. וי וי בקצה הבועה מחייב below.
       const txt = (s.el.textContent || '').trim();
       const short = TICKS_LAYOUT !== 'bubble-start' && txt.length <= 28 && !/\n/.test(s.el.innerText || '')
@@ -1442,6 +1481,7 @@
       if (main) cards.add(cardOf(main));
       document.querySelectorAll('.wa-scroller').forEach((sc) => { if (!main || !main.contains(sc)) cards.add(cardOf(sc)); });
       cards.forEach((card) => { addCls(card, 'wa-card'); if (main && card.contains(main)) { darkButton(card); chatHead(card, main); } });
+      document.querySelectorAll('.wa-main').forEach(footFix);
       lap('card');
       darkFix([...cards]);
       lap('dark');
