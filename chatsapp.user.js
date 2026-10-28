@@ -16,13 +16,11 @@
 (function () {
   'use strict';
 
-  /* ================= אייקונים ירוקים בצד (משותף לצ'אט ול-Gmail) ================= */
-  // פס האפליקציות (יומן, Keep, משימות, אנשי קשר) והפס של Gmail (דואר, צ'אט, Meet): האייקונים של גוגל הם תמונות,
-  // אז הם נצבעים במסנן SVG: הצורה בירוק, וחלקים בהירים בתוך האייקון (למשל המספר ביומן) נשארים שקופים למחצה.
-  // השורה הנבחרת ברשימת הצ'אטים ובפס של Gmail: ירוק בהיר במקום התכלת של גוגל. שמות מרחבים בירוק.
+  /* ================= ירוק בצד (משותף לצ'אט ול-Gmail) ================= */
+  // השורה הנבחרת ברשימת הצ'אטים ובפס של Gmail (דואר/צ'אט/Meet): ירוק בהיר במקום התכלת של גוגל. שמות מרחבים בירוק.
+  // (האייקונים עצמם נשארים בצבעים המקוריים)
   const ICON_GREEN = '#008069', ICON_SEL = '#d9fdd3', ICON_SEL_TEXT = '#00684a';
   const ICON_CSS = `
-  .wa-ico, .wa-ico-b::before { filter: url(#wa-green) !important; }
   .wa-navsel { box-shadow: inset 0 0 0 100vmax ${ICON_SEL} !important; }
   .wa-navsel, .wa-navsel *, .wa-navtxt { -webkit-text-fill-color: ${ICON_SEL_TEXT}; }
   [data-group-id^="space/"][role="listitem"] [jsname="dfY7oc"] { -webkit-text-fill-color: ${ICON_GREEN}; }
@@ -31,29 +29,11 @@
   const rgbOf = (c) => { const m = c && c.match(/rgba?\(([^)]+)\)/); if (!m) return null; const p = m[1].split(/[ ,\/]+/).filter(Boolean).map(Number); return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 }; };
   const isSelBg = (c) => !!c && c.a > 0.5 && c.b >= 235 && c.r >= 170 && c.b - c.r >= 15;          // התכלת של "נבחר"
   const isSelText = (c) => !!c && c.b - c.r >= 60 && (c.r * 0.299 + c.g * 0.587 + c.b * 0.114) < 140;  // טקסט כחול כהה
-  function greenFilter() {
-    if (document.getElementById('wa-green') || !document.body) return;
-    const NS = 'http://www.w3.org/2000/svg', el = (t, a) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); return e; };
-    const svg = el('svg', { width: '0', height: '0', 'aria-hidden': 'true', style: 'position:absolute;width:0;height:0', class: 'wa-filters' });
-    const f = el('filter', { id: 'wa-green', 'color-interpolation-filters': 'sRGB' });
-    f.appendChild(el('feColorMatrix', { type: 'matrix', result: 'a', values: '0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -0.3 -0.59 -0.11 1.25 0' }));
-    f.appendChild(el('feFlood', { 'flood-color': ICON_GREEN, result: 'c' }));
-    f.appendChild(el('feComposite', { in: 'c', in2: 'a', operator: 'in' }));
-    svg.appendChild(f);
-    document.body.appendChild(svg);
-  }
   let iconsLast = 0, iconsTimer = 0;
   function iconsFix() {
     const now = Date.now();
     if (now - iconsLast < 700) { if (!iconsTimer) iconsTimer = setTimeout(() => { iconsTimer = 0; iconsFix(); }, 750); return; }
     iconsLast = now;
-    greenFilter();
-    document.querySelectorAll('[id^="gsc-gab-"] *').forEach((e) => {
-      if (!e.classList.contains('wa-ico') && /url\(/.test(getComputedStyle(e).backgroundImage)) e.classList.add('wa-ico');
-    });
-    document.querySelectorAll('.V6, [jsname="hSRGPd"]').forEach((e) => {
-      if (!e.classList.contains('wa-ico-b') && /url\(/.test(getComputedStyle(e, '::before').backgroundImage)) e.classList.add('wa-ico-b');
-    });
     const cand = document.querySelectorAll('[jsname="yPINCb"] [jsname], [jsname="yPINCb"] [role], .V6');   // רשימת הצ'אטים + הפס של Gmail (לא רשימת התיקיות של הדואר)
     cand.forEach((e) => {
       const cs = getComputedStyle(e);
@@ -65,8 +45,7 @@
   }
   function iconsCleanup() {
     clearTimeout(iconsTimer); iconsTimer = 0;
-    document.querySelectorAll('.wa-ico, .wa-ico-b, .wa-navsel, .wa-navtxt').forEach((e) => e.classList.remove('wa-ico', 'wa-ico-b', 'wa-navsel', 'wa-navtxt'));
-    document.querySelectorAll('svg.wa-filters').forEach((e) => e.remove());
+    document.querySelectorAll('.wa-navsel, .wa-navtxt').forEach((e) => e.classList.remove('wa-navsel', 'wa-navtxt'));
   }
 
   // בדף של Gmail עצמו רק האייקונים שבצד; הצ'אט שבתוך Gmail נטען ב-iframe של chat.google.com ומעוצב שם במלואו
@@ -386,6 +365,21 @@
   /* הקופסה של נעיצה/שרשורים/קבצים בפינה העליונה */
   [jsname="Zpe2Q"] { background-color: var(--wa-acc-l) !important; }
   [jsname="Zpe2Q"] svg, [jsname="Zpe2Q"] i { color: var(--wa-acc-t) !important; -webkit-text-fill-color: var(--wa-acc-t); }
+
+  /* ---- הפס העליון של השיחה (עם מי מתכתבים): ירוק של וואטסאפ, ובמצב כהה אפור-כהה ---- */
+  :root { --wa-head:#008069; --wa-head-text:#fff; }
+  html[data-wa-dark="true"] .wa-card { --wa-head:#202c33; --wa-head-text:#e9edef; }
+  .wa-chathead { background-color: var(--wa-head) !important; box-shadow: none !important; }
+  .wa-chathead, .wa-chathead * { color: var(--wa-head-text) !important; -webkit-text-fill-color: var(--wa-head-text); }
+  .wa-chathead svg, .wa-chathead i { color: var(--wa-head-text) !important; }
+  .wa-chathead .wa-acc-l, .wa-chathead .wa-acc { box-shadow: inset 0 0 0 100vmax rgba(255,255,255,.16) !important; }
+  .wa-chathead .wa-headbtn { background-color: rgba(255,255,255,.16) !important; }
+  .wa-chathead .wa-darkbtn { color: var(--wa-head-text); }
+  .wa-chathead .wa-darkbtn:hover { background: rgba(255,255,255,.12); }
+  /* קופסת הנעיצה/השרשורים כשהיא יושבת על הפס הירוק */
+  [jsname="Zpe2Q"].wa-onhead { background-color: rgba(255,255,255,.16) !important; }
+  [jsname="Zpe2Q"].wa-onhead, [jsname="Zpe2Q"].wa-onhead * { color: var(--wa-head-text) !important; -webkit-text-fill-color: var(--wa-head-text); }
+  [jsname="Zpe2Q"].wa-onhead svg { color: var(--wa-head-text) !important; }
 
   /* ---- תיבת הכתיבה כמו בוואטסאפ: אייקונים אפורים, "+" בלי עיגול, ושליחה בעיגול ירוק עם חץ לבן ---- */
   .wa-compose-panel button, .wa-compose button { color: var(--wa-icon) !important; }
@@ -943,6 +937,36 @@
     applyDark();
   }
 
+  // הפס העליון של השיחה: המשטח בראש החלון, מעל אזור ההודעות, ברוחב של אזור ההודעות (לא של חלונית השרשור)
+  const headSeen = new WeakSet();
+  function chatHead(card, main) {
+    const mr = main.getBoundingClientRect();
+    let head = card.querySelector('[jsname="uwkwCe"]');
+    // (הפס חופף קצת את אזור ההודעות - אצל גוגל בערך 9 פיקסלים)
+    if (!head || head.getBoundingClientRect().bottom > mr.top + 20) {
+      head = null;
+      for (let n = main.previousElementSibling || main.parentElement; n && n !== card.parentElement; n = n.parentElement) {
+        const h = [...n.children].find((c) => { const r = c.getBoundingClientRect(); return r.bottom <= mr.top + 20 && r.height >= 40 && r.height <= 90 && r.width >= mr.width * 0.8; });
+        if (h) { head = h; break; }
+      }
+    }
+    document.querySelectorAll('.wa-chathead').forEach((h) => { if (h !== head) delCls(h, 'wa-chathead'); });
+    if (!head) return;
+    addCls(head, 'wa-chathead');
+    // כפתורים עם רקע בהיר משלהם (למשל שיחת וידאו) - רקע לבן-שקוף על הפס
+    head.querySelectorAll('*').forEach((e) => {
+      if (headSeen.has(e) || e instanceof SVGElement) return;
+      headSeen.add(e);
+      const b = parseRGB(getComputedStyle(e).backgroundColor);
+      if (b && b.a > 0.5 && lum(b) > 200 && b.g < 250) addCls(e, 'wa-headbtn');
+    });
+    const hr = head.getBoundingClientRect();
+    document.querySelectorAll('[jsname="Zpe2Q"]').forEach((z) => {
+      const r = z.getBoundingClientRect();
+      setCls(z, 'wa-onhead', r.top >= hr.top - 2 && r.bottom <= hr.bottom + 2 && r.left >= hr.left - 2 && r.right <= hr.right + 2);
+    });
+  }
+
   // צביעת משטחים וטקסט של גוגל בתוך החלון. כל אלמנט נבדק פעם אחת (כשהוא מופיע), כך שזה זול גם בשיחה ארוכה.
   const dkSeen = new WeakSet();
   const DK_SKIP = '.wa-darkbtn, [role="menu"], [role="dialog"], [role="tooltip"], [role="listbox"], ' + SEL.toolbar;
@@ -1241,7 +1265,7 @@
       const cards = new Set();
       if (main) cards.add(cardOf(main));
       document.querySelectorAll('.wa-scroller').forEach((sc) => { if (!main || !main.contains(sc)) cards.add(cardOf(sc)); });
-      cards.forEach((card) => { addCls(card, 'wa-card'); if (main && card.contains(main)) darkButton(card); });
+      cards.forEach((card) => { addCls(card, 'wa-card'); if (main && card.contains(main)) { darkButton(card); chatHead(card, main); } });
       darkFix([...cards]);
       accentFix([...cards]);
     } catch (e) { tag.error = 'dark: ' + e; }
