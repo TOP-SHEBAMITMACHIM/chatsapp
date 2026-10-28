@@ -372,6 +372,35 @@
   :where(html[data-wa-dark="true"]) .wa-dk-psh::before, :where(html[data-wa-dark="true"]) .wa-dk-psh::after { box-shadow: none !important; }
   html[data-wa-dark="true"] .wa-card ::placeholder { color: var(--wa-sub) !important; }
 
+  /* ---- ירוק של וואטסאפ במקום הכחול של גוגל בחלון השיחה (צ'יפים, כפתורים נבחרים, "הודעות חדשות"...) ----
+     צל פנימי במקום רקע ו-text-fill במקום צבע, כך שאפשר להמשיך לקרוא מה גוגל מסמנת (נבחר/לא נבחר) */
+  :root { --wa-acc:#00a884; --wa-acc-l:#d9fdd3; --wa-acc-t:#008069; --wa-icon:#54656f; }
+  html[data-wa-dark="true"] .wa-card { --wa-acc-l:rgba(0,168,132,.22); --wa-acc-t:#00a884; --wa-icon:#aebac1; }
+  .wa-acc-l { box-shadow: inset 0 0 0 100vmax var(--wa-acc-l) !important; }
+  .wa-acc { box-shadow: inset 0 0 0 100vmax var(--wa-acc) !important; }
+  .wa-acc-tx { -webkit-text-fill-color: var(--wa-acc-t); }
+  .wa-acc-tx svg, .wa-acc-l svg { color: var(--wa-acc-t) !important; }
+  .wa-acc svg { color: #fff !important; }
+  .wa-acc-b::before { background-color: var(--wa-acc) !important; }
+  .wa-compose.wa-compose::before { background: var(--wa-input) !important; }
+  /* הקופסה של נעיצה/שרשורים/קבצים בפינה העליונה */
+  [jsname="Zpe2Q"] { background-color: var(--wa-acc-l) !important; }
+  [jsname="Zpe2Q"] svg, [jsname="Zpe2Q"] i { color: var(--wa-acc-t) !important; -webkit-text-fill-color: var(--wa-acc-t); }
+
+  /* ---- תיבת הכתיבה כמו בוואטסאפ: אייקונים אפורים, "+" בלי עיגול, ושליחה בעיגול ירוק עם חץ לבן ---- */
+  .wa-compose-panel button, .wa-compose button { color: var(--wa-icon) !important; }
+  .wa-compose-panel button svg, .wa-compose button svg { color: var(--wa-icon) !important; }
+  [jsname="kVb47c"] { box-shadow: none !important; background: transparent !important; }
+  [jsname="kVb47c"], [jsname="kVb47c"] * { -webkit-text-fill-color: var(--wa-icon); }
+  [jsname="kVb47c"] svg { color: var(--wa-icon) !important; }
+  :is([jsname="GBTyxb"], button[aria-label="שליחת הודעה"], button[aria-label="Send message"]):not([disabled]) {
+    background: var(--wa-acc) !important; color: #fff !important; border-radius: 50% !important;
+    width: 42px !important; height: 42px !important; align-self: center !important; margin: 0 4px !important;
+  }
+  :is([jsname="GBTyxb"], button[aria-label="שליחת הודעה"], button[aria-label="Send message"]):not([disabled]) svg { color: #fff !important; }
+  :is([jsname="GBTyxb"], button[aria-label="שליחת הודעה"], button[aria-label="Send message"]):not([disabled]) *::before { opacity: 0 !important; }
+  .wa-compose [role="textbox"][contenteditable="true"] { font-size: 15px !important; }
+
   /* כפתור הירח בסרגל העליון של השיחה */
   .wa-darkbtn {
     display: inline-flex; align-items: center; justify-content: center; flex: none; box-sizing: border-box;
@@ -410,6 +439,9 @@
 
   let stopped = false;
   const colorCache = new WeakMap();
+  let lastSend = 0;                    // מתי שלחתי הודעה לאחרונה
+  const firstSeen = new WeakMap();     // מתי כל הודעה הופיעה לראשונה בדף
+  const panes = new WeakMap();         // אזור הגלילה של כל הודעה (נשמר בין סבבים)
 
   function parseRGB(c) {
     const m = c && c.match(/rgba?\(([^)]+)\)/);
@@ -803,11 +835,11 @@
     });
   }
 
-  let composeBox = null;
+  // כל תיבות הכתיבה (גם זו שבחלונית השרשור)
   function composeFix() {
-    const box = document.querySelector(SEL.composer);
-    if (!box || (box === composeBox && box.closest('.wa-compose'))) return;
-    composeBox = box;
+    document.querySelectorAll(SEL.composer).forEach((box) => { if (!box.closest('.wa-compose')) composeOne(box); });
+  }
+  function composeOne(box) {
     let pill = null;
     for (let n = box.parentElement, k = 0; n && k < 10; n = n.parentElement, k++) {
       if (!pill) {
@@ -915,18 +947,19 @@
   const dkSeen = new WeakSet();
   const DK_SKIP = '.wa-darkbtn, [role="menu"], [role="dialog"], [role="tooltip"], [role="listbox"], ' + SEL.toolbar;
   let dkLast = 0, dkTimer = 0;
-  function darkFix(card) {
-    if (!card || document.documentElement.getAttribute('data-wa-dark') !== 'true') return;
+  function darkFix(cards) {
+    if (!cards.length || document.documentElement.getAttribute('data-wa-dark') !== 'true') return;
     const now = Date.now();
     if (now - dkLast < 500) { if (!dkTimer) dkTimer = setTimeout(() => { dkTimer = 0; schedule(); }, 550); return; }
     dkLast = now;
-    for (const e of card.querySelectorAll('*')) {
+    for (const card of cards) for (const e of [card, ...card.querySelectorAll('*')]) {
       if (dkSeen.has(e)) continue;
       dkSeen.add(e);
       if (e instanceof SVGElement || PAINT_SKIP.has(e.tagName) || e.closest(DK_SKIP)) continue;
       const cs = getComputedStyle(e);
       const bg = parseRGB(cs.backgroundColor);
-      const ours = [...e.classList].some((c) => c.startsWith('wa-'));
+      // אלמנטים שהעיצוב שלנו כבר צובע (בועות, רקע, תיבת כתיבה). הסימונים של הירוק/הכהה/החלון לא נחשבים
+      const ours = [...e.classList].some((c) => c.startsWith('wa-') && !/^wa-(acc|dk-|card|navsel|navtxt)/.test(c));
       // (לא הבועה המקורית של גוגל - ההורה הישיר של ההודעה - שמקבלת את הצבע שלה מהעיצוב של הבועות)
       if (!ours && bg && bg.a > 0.5 && lum(bg) > 200 && !e.querySelector(':scope > ' + SEL.message)) addCls(e, e.closest('.wa-compose') ? 'wa-dk-in' : 'wa-dk-bg');
       if (!ours) {
@@ -942,6 +975,40 @@
         const l = lum(fg);
         if (l < 90) addCls(e, 'wa-dk-tx');
         else if (l < 150) addCls(e, 'wa-dk-sub');
+      }
+    }
+  }
+
+  // הכחול של גוגל בחלון השיחה, מחוץ לאזור ההודעות (סרגל עליון, תיבת כתיבה, חלונית השרשור, תוויות צפות).
+  // נבדק מחדש בכל סבב (בהשהיה), כי "נבחר"/"לא נבחר" משתנה - והצבע המקורי לא נדרס, אז אפשר לקרוא אותו שוב.
+  let accLast = 0, accTimer = 0;
+  function accentFix(cards) {
+    const now = Date.now();
+    if (now - accLast < 600) { if (!accTimer) accTimer = setTimeout(() => { accTimer = 0; schedule(); }, 650); return; }
+    accLast = now;
+    cards.forEach(accentCard);
+  }
+  function accentCard(card) {
+    const walk = document.createTreeWalker(card, NodeFilter.SHOW_ELEMENT, {
+      acceptNode: (n) => {
+        if (n instanceof SVGElement) return NodeFilter.FILTER_REJECT;
+        if (n.classList.contains('wa-scroller')) {
+          // אזור ההודעות עצמו: רק התוויות הצפות ("הודעות חדשות", "מעבר לתחתית") - לא אלפי האלמנטים של ההודעות
+          n.querySelectorAll('[jsname="lccMsc"], [jsname="ayNidc"]').forEach((p) => addCls(p, 'wa-acc'));
+          return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+    for (let e = walk.nextNode(); e; e = walk.nextNode()) {
+      const cs = getComputedStyle(e), bg = parseRGB(cs.backgroundColor), fg = parseRGB(cs.color);
+      const light = isSelBg(bg), strong = !!bg && bg.a > 0.5 && bg.b >= 180 && bg.b - bg.r >= 100;
+      setCls(e, 'wa-acc-l', light);
+      setCls(e, 'wa-acc', strong);
+      setCls(e, 'wa-acc-tx', !!fg && fg.b - fg.r >= 60 && lum(fg) < 160);
+      if (!e.classList.contains('wa-acc-b') && !e.classList.contains('wa-compose')) {   // (הכדור של תיבת הכתיבה נשאר לבן)
+        const b = getComputedStyle(e, '::before');
+        if (b.content !== 'none') { const c = parseRGB(b.backgroundColor); if (c && c.b >= 180 && c.b - c.r >= 100) addCls(e, 'wa-acc-b'); }
       }
     }
   }
@@ -989,16 +1056,37 @@
     const state = [];   // לכל הודעה: {el, bubble, own, scroller}
     const hasGroups = !!document.querySelector(SEL.group);
 
+    // אזור הגלילה של כל הודעה. ההודעות שבחלונית שרשור לא נמצאות בתוך אזור ההודעות הראשי של גוגל,
+    // אז שם לוקחים את העוטף הגליל הקרוב (גם אם עוד אין בו מספיק הודעות כדי לגלול)
+    const paneOf = (el) => {
+      const c = panes.get(el);
+      if (c !== undefined && (c === null || c.contains(el))) return c;
+      let p = el.closest(SEL.scroller);
+      for (let n = el.parentElement; !p && n && n !== document.body; n = n.parentElement) {
+        if (/(auto|scroll)/.test(getComputedStyle(n).overflowY)) p = n;
+      }
+      panes.set(el, p || null);
+      return p || null;
+    };
     // אזורי גלילה שבהם כל ההודעות באותו צד למרות שיש כמה שולחים (למשל חלונית שרשור): שם הצד לא אומר מי שלח
     const oneSided = new Set(), layout = new Map();
     msgs.forEach((el) => {
-      const sc = el.closest(SEL.scroller), sender = senderOf(el);
+      if (!firstSeen.has(el)) firstSeen.set(el, Date.now());
+      const sc = paneOf(el), sender = senderOf(el);
       if (!sc) return;
       if (!layout.has(sc)) layout.set(sc, { sides: new Set(), senders: new Set() });
       const L = layout.get(sc), side = sideOwn(el);
       if (side !== null) L.sides.add(side);
       if (sender) L.senders.add(sender);
+      (L.msgs || (L.msgs = [])).push(el);
     });
+    // ההודעה בין 3 האחרונות של אזור הגלילה שלה (חלונית שרשור היא אזור נפרד, ולא בהכרח האחרונה בדף)
+    const lastInPane = (el, i) => {
+      const L = layout.get(paneOf(el));
+      return L ? L.msgs.indexOf(el) >= L.msgs.length - 3 : i >= msgs.length - 3;
+    };
+    // הופיעה לראשונה ממש אחרי ששלחתי (Enter או כפתור השליחה)
+    const justSent = (el) => { const t = firstSeen.get(el) || 0; return lastSend && t >= lastSend - 300 && t - lastSend < 10000; };
     layout.forEach((L, sc) => { if (L.senders.size > 1 && L.sides.size === 1) oneSided.add(sc); });
 
     // 1) מי שלח כל הודעה: קודם לפי מזהה השולח (הכי אמין, גם בשרשורים), ורק כשאין מזהה - לפי הצד על המסך.
@@ -1008,13 +1096,14 @@
       const sender = senderOf(el);
       const prev = el.parentElement && el.parentElement.getAttribute('data-wa-own');
       const space = inSpace(el);
-      const side = (space || oneSided.has(el.closest(SEL.scroller))) ? null : sideOwn(el);
+      const side = (space || oneSided.has(paneOf(el))) ? null : sideOwn(el);
       let own = null;
       if (MY_ID && sender) own = sender === MY_ID;
       else if (side !== null) own = side;   // הודעה שעוד בשליחה (בלי מזהה): הצד ידוע מיד
       // הודעה מקומית שעוד לא אושרה בשרת: אין לה מזהה שולח בזמן שלשאר ההודעות יש. רק אז היא בוודאות שלי
       // (אם גוגל לא חושפת מזהים בכלל, "3 האחרונות" היו מסמנות גם הודעות נכנסות כשלי)
-      else if (!sender && hasGroups && !space && i >= msgs.length - 3) own = true;
+      // במרחב (וגם בשרשור בתוכו) - רק אם היא הופיעה מיד אחרי שליחה שלי, אחרת זו יכולה להיות הודעה של מישהו אחר
+      else if (!sender && hasGroups && lastInPane(el, i) && (!space || justSent(el))) own = true;
       else {
         own = colorOwn(el);
         // הבועה כבר צבועה שלנו ואי אפשר לקרוא את הצבע המקורי: נשארים עם ההחלטה הקודמת
@@ -1147,8 +1236,14 @@
     try { voiceBoxes(oneSided); } catch (e) { tag.error = 'voice: ' + e; }
     try { boxMeta(seenSlots); } catch (e) { tag.error = 'boxmeta: ' + e; }
     try {
-      const main = document.querySelector('.wa-main'), card = main && cardOf(main);
-      if (card) { addCls(card, 'wa-card'); darkButton(card); darkFix(card); }
+      // חלון השיחה הראשי, וגם חלונית השרשור (חלון נפרד לידו)
+      const main = document.querySelector('.wa-main');
+      const cards = new Set();
+      if (main) cards.add(cardOf(main));
+      document.querySelectorAll('.wa-scroller').forEach((sc) => { if (!main || !main.contains(sc)) cards.add(cardOf(sc)); });
+      cards.forEach((card) => { addCls(card, 'wa-card'); if (main && card.contains(main)) darkButton(card); });
+      darkFix([...cards]);
+      accentFix([...cards]);
     } catch (e) { tag.error = 'dark: ' + e; }
     try { iconsFix(); } catch (e) { tag.error = 'icons: ' + e; }
     tag.last = { total: msgs.length, seenCount, readUpTo: readIdx, state, seenSlots: seenSlots.length };
@@ -1162,9 +1257,23 @@
     requestAnimationFrame(() => { queued = false; tag(); });
   }
 
-  const observer = new MutationObserver(schedule);
+  // גוגל מציירת מחדש בועות (למשל כשהשרת מאשר הודעה ששלחתי) ומוחקת את הסימון שלנו בלי להוסיף אלמנט -
+  // לכן מאזינים גם להסרה של המחלקות/התכונות שלנו (ורק להסרה, כדי שהשינויים שלנו עצמנו לא יפעילו סבב נוסף)
+  const lostOurs = (m) => {
+    if (m.attributeName === 'class') {
+      const now = m.target.getAttribute('class') || '';
+      return (m.oldValue || '').split(/\s+/).some((c) => c.startsWith('wa-') && !now.includes(c));
+    }
+    return m.oldValue !== null && !m.target.hasAttribute(m.attributeName);
+  };
+  const observer = new MutationObserver((ms) => {
+    for (const m of ms) {
+      if (m.type === 'childList' || m.attributeName === 'data-user-id' || m.attributeName === 'data-theme' || lostOurs(m)) { schedule(); return; }
+    }
+  });
   observer.observe(document.documentElement, {
-    subtree: true, childList: true, attributes: true, attributeFilter: ['data-user-id', 'data-theme'],
+    subtree: true, childList: true, attributes: true, attributeOldValue: true,
+    attributeFilter: ['data-user-id', 'data-theme', 'class', 'data-wa-own', 'data-wa-tail'],
   });
 
   // זיהוי שליחה: מריצים את העיצוב כמה פעמים מיד אחרי השליחה, כדי שההודעה החדשה תצבע בלי לחכות
@@ -1177,6 +1286,7 @@
       sent = !!b && /שלח|שליחה|send/i.test(b.getAttribute('aria-label') || '');
     }
     if (!sent) return;
+    lastSend = Date.now();
     [30, 150, 400, 900, 2000].forEach((ms) => setTimeout(tag, ms));
   }
   document.addEventListener('keydown', onSend, true);
@@ -1308,6 +1418,7 @@
     window.removeEventListener('storage', onStorage);
     clearInterval(readPoll);
     clearTimeout(dkTimer);
+    clearTimeout(accTimer);
     iconsCleanup();
     document.querySelectorAll('.wa-darkbtn').forEach((x) => x.remove());
     document.documentElement.style.removeProperty('--wa-img-dark');
