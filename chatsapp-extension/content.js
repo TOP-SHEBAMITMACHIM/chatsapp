@@ -481,6 +481,9 @@
   let stopped = false;
   const colorCache = new WeakMap();
   let lastSend = 0;                    // מתי שלחתי הודעה לאחרונה
+  const sentTexts = [];                // הטקסטים האחרונים ששלחתי (עם זמן) - לזיהוי ההודעה שלי לפני שגוגל מסמנת את השולח
+  const norm = (t) => (t || '').replace(/\s+/g, ' ').trim();
+  const mineBySend = new WeakSet();    // הודעות שזוהו כשלי לפי הטקסט ששלחתי
   const firstSeen = new WeakMap();     // מתי כל הודעה הופיעה לראשונה בדף
   const panes = new WeakMap();         // אזור הגלילה של כל הודעה (נשמר בין סבבים)
 
@@ -1339,7 +1342,14 @@
       const space = inSpace(el);
       const side = (space || oneSided.has(paneOf(el))) ? null : sideOwn(el);
       let own = null;
-      if (MY_ID && sender) own = sender === MY_ID;
+      // הופיעה מיד אחרי ששלחתי, עם בדיוק הטקסט ששלחתי - שלי, גם אם גוגל שמה אותה לרגע בקבוצה של מישהו אחר
+      // או עוד בלי מזהה שולח (במרחבים זה קורה, וכך היא נשארה לבנה עד שהשרת אישר)
+      if (!mineBySend.has(el) && !(MY_ID && sender === MY_ID)) {
+        const t = norm(el.textContent), seen = firstSeen.get(el) || 0;
+        if (t && sentTexts.some((x) => seen >= x.at - 300 && seen - x.at < 15000 && (t === x.txt || t.startsWith(x.txt)))) mineBySend.add(el);
+      }
+      if (mineBySend.has(el)) own = true;
+      else if (MY_ID && sender) own = sender === MY_ID;
       else if (side !== null) own = side;   // הודעה שעוד בשליחה (בלי מזהה): הצד ידוע מיד
       // הודעה מקומית שעוד לא אושרה בשרת: אין לה מזהה שולח בזמן שלשאר ההודעות יש. רק אז היא בוודאות שלי
       // (אם גוגל לא חושפת מזהים בכלל, "3 האחרונות" היו מסמנות גם הודעות נכנסות כשלי)
@@ -1606,6 +1616,11 @@
     }
     if (!sent) return;
     lastSend = Date.now();
+    // הטקסט שנשלח: התיבה שבה הקישו Enter, או התיבה שבשורה של כפתור השליחה שנלחץ
+    const row = e.target.closest('.wa-compose-panel, [jsname="SFaVIf"]') || e.target.parentElement;
+    const box = e.target.closest(SEL.composer) || (row && row.querySelector(SEL.composer));
+    const txt = norm(box && box.innerText);
+    if (txt) { sentTexts.push({ txt, at: lastSend }); if (sentTexts.length > 5) sentTexts.shift(); }
     [30, 150, 400, 900, 2000].forEach((ms) => setTimeout(tag, ms));
   }
   document.addEventListener('keydown', onSend, true);
