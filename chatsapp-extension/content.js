@@ -223,7 +223,7 @@
   .wa-tk[data-state="read"] { color: ${TICK_READ}; }
   .wa-tk[data-hidden="true"] { display: none; }
   .wa-time:empty { display: none; }
-  /* קבוצה: כמה קראו (עד שכולם קראו והוי וי כחולים) */
+  /* קבוצה: כמה קראו - תמיד ליד ה-VV */
   .wa-rc { font-size: 11px; color: var(--wa-sub); margin-inline-end: -2px; }
   .wa-rc:empty { display: none; }
   /* מעבר עכבר על המספר / הוי וי מציג מי קרא, בתווית כהה מעל השורה (השורה עצמה לא תופסת לחיצות - רק הם) */
@@ -1501,7 +1501,8 @@
         delAttr(tk, 'data-hidden');
         const who = group ? readersOf(i) : [], n = who.length;
         setAttr(tk, 'data-state', (group ? n > 0 && n >= members.size : i <= readIdx) ? 'read' : 'sent');
-        if (group && n > 0 && n < members.size) setAttr(m, 'data-wa-rc', String(n)); else delAttr(m, 'data-wa-rc');
+        // המספר תמיד ליד ה-VV (גם כשכולם קראו והם כחולים), ובמעבר עכבר - מי קרא
+        if (group && n > 0) setAttr(m, 'data-wa-rc', String(n)); else delAttr(m, 'data-wa-rc');
         // מי קרא: מעבר עכבר על המספר או על הוי וי
         const rc = rcOf(m);
         rc.textContent = m.hasAttribute('data-wa-rc') ? String(n) : '';
