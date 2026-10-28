@@ -12,6 +12,17 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "ChatsApp",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
+  },
+  "permissions": [
+    "storage"
+  ],
   "content_scripts": [
     {
       "matches": [
@@ -25,6 +36,18 @@
       "run_at": "document_idle",
       "all_frames": true,
       "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://chat.google.com/*",
+        "https://mail.google.com/chat/*",
+        "https://mail.google.com/mail/*"
+      ],
+      "js": [
+        "bridge.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
     }
   ]
 }

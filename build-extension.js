@@ -19,6 +19,7 @@ fs.writeFileSync(path.join(OUT, 'content.js'),
   '// ChatsApp ' + version + ' - נבנה אוטומטית מ-chatsapp.user.js (לא לערוך כאן)\n' + src);
 
 // ---- manifest ----
+const MATCHES = ['https://chat.google.com/*', 'https://mail.google.com/chat/*', 'https://mail.google.com/mail/*'];
 const manifest = {
   manifest_version: 3,
   name: "ChatsApp – וואטסאפ לגוגל צ'אט",
@@ -28,9 +29,12 @@ const manifest = {
   description: meta('description'),
   minimum_chrome_version: '111',                      // world: MAIN
   icons: { 16: 'icons/icon16.png', 32: 'icons/icon32.png', 48: 'icons/icon48.png', 128: 'icons/icon128.png' },
+  // החלון הקופץ: מצב כהה/בהיר וקרדיט. ההגדרה נשמרת ב-storage ומגיעה לדף דרך bridge.js
+  action: { default_popup: 'popup.html', default_title: 'ChatsApp', default_icon: { 16: 'icons/icon16.png', 32: 'icons/icon32.png' } },
+  permissions: ['storage'],
   content_scripts: [{
-    // ב-Gmail עצמו (mail/*) רק האייקונים שבצד נצבעים בירוק; הצ'אט שם הוא iframe של chat.google.com
-    matches: ['https://chat.google.com/*', 'https://mail.google.com/chat/*', 'https://mail.google.com/mail/*'],
+    // ב-Gmail עצמו (mail/*) רק הסימון הירוק של הפריט הנבחר בפס הצד; הצ'אט שם הוא iframe של chat.google.com
+    matches: MATCHES,
     js: ['content.js'],
     run_at: 'document_idle',
     // בתוך Gmail הצ'אט נטען ב-iframe של chat.google.com, וכרום מריץ סקריפט תוכן רק בדף הראשי אם לא מבקשים
@@ -38,9 +42,19 @@ const manifest = {
     all_frames: true,
     // רץ בתוך הדף עצמו (כמו הסקריפט עם @grant none), כך שפקודות האבחון (waDebug וכו') זמינות בקונסול
     world: 'MAIN',
+  }, {
+    // הגשר לחלון הקופץ: רץ בעולם של התוסף (יש לו chrome.storage) ומדבר עם content.js דרך postMessage
+    matches: MATCHES,
+    js: ['bridge.js'],
+    run_at: 'document_idle',
+    all_frames: true,
   }],
 };
 fs.writeFileSync(path.join(OUT, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
+
+// ---- החלון הקופץ והגשר: קבצים רגילים מ-extension-src/ ----
+const EXTRA = ['popup.html', 'popup.js', 'bridge.js', 'mitmachim.png'];
+for (const f of EXTRA) fs.copyFileSync(path.join(__dirname, 'extension-src', f), path.join(OUT, f));
 
 // ---- אייקונים: עיגול ירוק עם בועת צ'אט לבנה ו-VV, מצוירים כאן ישירות ל-PNG (בלי ספריות) ----
 function crc32(buf) {
@@ -137,7 +151,7 @@ function zip(files) {
   end.writeUInt32LE(cd.length, 12); end.writeUInt32LE(offset, 16);
   return Buffer.concat([...local, cd, end]);
 }
-const zipFiles = ['manifest.json', 'content.js', 'icons/icon16.png', 'icons/icon32.png', 'icons/icon48.png', 'icons/icon128.png']
+const zipFiles = ['manifest.json', 'content.js', ...EXTRA, 'icons/icon16.png', 'icons/icon32.png', 'icons/icon48.png', 'icons/icon128.png']
   .map((f) => [f, fs.readFileSync(path.join(OUT, ...f.split('/')))]);
 const ZIP = path.join(__dirname, 'chatsapp-extension-v' + version + '.zip');
 fs.writeFileSync(ZIP, zip(zipFiles));

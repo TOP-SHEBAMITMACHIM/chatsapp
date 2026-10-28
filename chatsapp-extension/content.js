@@ -37,11 +37,9 @@
     iconsLast = now;
     // רשימת הצ'אטים (גם כשהיא ב-iframe נפרד בתוך Gmail) + הפס של Gmail (לא רשימת התיקיות של הדואר)
     const cand = document.querySelectorAll('[jsname="yPINCb"] [jsname], [jsname="yPINCb"] [role], [role="listitem"][data-group-id], [role="listitem"][data-group-id] [role="link"], .V6');
-    cand.forEach((e) => {
-      const cs = getComputedStyle(e);
-      const sel = isSelBg(rgbOf(cs.backgroundColor));
+    const todo = [...cand].map((e) => { const cs = getComputedStyle(e); return [e, isSelBg(rgbOf(cs.backgroundColor)), isSelText(rgbOf(cs.color))]; });
+    todo.forEach(([e, sel, tx]) => {
       if (sel !== e.classList.contains('wa-navsel')) e.classList.toggle('wa-navsel', sel);
-      const tx = isSelText(rgbOf(cs.color));
       if (tx !== e.classList.contains('wa-navtxt')) e.classList.toggle('wa-navtxt', tx);
     });
   }
@@ -495,6 +493,15 @@
   }
 
   // לאן "מצמידים" את הוי וי כשהאווטאר לא בתוך בועת טקסט (למשל כרטיס סרטון/קובץ)
+  // אזור הגלילה של הודעה, שמור בין סבבים (findScroller קורא מידות, וזה יקר לעשות לכל הודעה בכל סבב)
+  const scrollers = new WeakMap();
+  function scrollerOf(el) {
+    const c = scrollers.get(el);
+    if (c && c.contains(el)) return c;
+    const s = findScroller(el);
+    if (s) scrollers.set(el, s);
+    return s;
+  }
   function pickAnchor(c, scroller) {
     const cluster = c.closest('[jsname="o7uNDd"]');
     if (cluster) return cluster;
@@ -582,6 +589,11 @@
     if (done) return done;
     const box = b.querySelector(SEL.quoteBox);
     if (box && !isOverlay(box, b)) return box;
+    // רוב הבועות: רק תוכן ההודעה (והשעה שלנו). ציטוט תמיד יושב לצד ההודעה, אז אם אין שם שום טקסט - אין מה לסרוק
+    // (הסריקה שלמטה מודדת ומחשבת סגנון לעשרות אלמנטים בכל בועה, וזה מה שהאט את המעבר בין שיחות)
+    const extra = [...b.children].some((c) => !c.matches(SEL.message) && !c.classList.contains('wa-meta')
+      && !c.classList.contains('wa-seen') && !c.matches(SEL.receipts) && c.textContent.trim());
+    if (!extra) return null;
     const minW = b.getBoundingClientRect().width * 0.45;
     const cands = b.querySelectorAll(':scope > *, :scope > * > *, :scope > * > * > *, :scope > * > * > * > *');
     for (const d of cands) {
@@ -670,9 +682,15 @@
   }
 
   // הרוחב הטבעי של שורת השעה+וי וי (לא offsetWidth: היא ממוקמת בצורה מוחלטת ונמתחת לרוחב הבועה)
+  // רוחב שורת השעה: נמדד פעם אחת לכל צורה (אורך השעה + עם/בלי וי וי) ונשמר, במקום למדוד כל בועה בכל סבב
+  const metaWidths = new Map();
   function metaWidth(m) {
+    const key = (m.querySelector('.wa-time') || {}).textContent.length + '|' + ((m.querySelector('.wa-tk') || {}).getAttribute?.('data-hidden') || '');
+    if (metaWidths.has(key)) return metaWidths.get(key);
     const ws = [...m.children].map((c) => c.getBoundingClientRect().width).filter((w) => w > 0);
-    return Math.ceil(ws.reduce((a, w) => a + w, 0) + (ws.length > 1 ? 12 : 0));
+    const w = Math.ceil(ws.reduce((a, x) => a + x, 0) + (ws.length > 1 ? 12 : 0));
+    if (w) metaWidths.set(key, w);
+    return w;
   }
 
   // בדיקה שהתמונה באמת נטענת במידות הצפויות (מסנן שמחליף אותה בסימן יחזיר מידות אחרות או שגיאה)
@@ -916,13 +934,22 @@
       setAttr(b, 'aria-pressed', String(on));
     });
   }
-  function toggleDark() {
-    try { localStorage.setItem(DARK_KEY, darkOn() ? '0' : '1'); } catch (e) {}
+  // announce: לספר לחלון הקופץ של התוסף (דרך bridge.js) שהמצב השתנה כאן
+  function setDark(on, announce) {
+    try { localStorage.setItem(DARK_KEY, on ? '1' : '0'); } catch (e) {}
     applyDark();
     dkLast = 0;   // בלי השהיה - שהמעבר יראה מיד
     tag();
+    if (announce) window.postMessage({ chatsapp: 'dark-changed', on }, '*');
   }
+  const toggleDark = () => setDark(!darkOn(), true);
   const onStorage = (e) => { if (e.key === DARK_KEY) { applyDark(); schedule(); } };   // שינוי בחלון/לשונית אחרים
+  // בגרסת התוסף: החלון הקופץ משנה מצב כהה/בהיר דרך bridge.js, שמעביר הודעה לדף (בסקריפט של Tampermonkey אין גשר - ולא קורה כלום)
+  const onBridge = (e) => {
+    const d = e.data;
+    if (e.source !== window || !d || d.chatsapp !== 'set-dark') return;
+    if (!!d.on !== darkOn()) setDark(!!d.on, false);
+  };
 
   // הרקע הכהה: אותה דוגמה של וואטסאפ, מחושבת מהתמונה הבהירה (רקע כהה, ציורים אפורים עמומים)
   function makeDarkBg() {
@@ -962,7 +989,15 @@
 
   // "חלון השיחה" = המלבן המעוגל החיצוני שמכיל את סרגל השם, ההודעות, תיבת הכתיבה וכפתורי הנעיצה/השרשורים
   // (יש שני מעוגלים מקוננים; לוקחים את החיצוני, אבל לא משהו שמכיל גם את רשימת הצ'אטים)
+  const cardCache = new WeakMap();
   function cardOf(main) {
+    const c = cardCache.get(main);
+    if (c && c.isConnected && c.contains(main)) return c;
+    const card = findCard(main);
+    cardCache.set(main, card);
+    return card;
+  }
+  function findCard(main) {
     let card = main;
     for (let n = main, k = 0; n && n !== document.body && k < 8; n = n.parentElement, k++) {
       if (n.querySelector(SEL.sidebar) || n.querySelector(SEL.header)) break;
@@ -982,8 +1017,11 @@
   const MOON = 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z';
   function darkButton(card) {
     if (!card || card.querySelector('.wa-darkbtn')) return;
-    const vid = [...card.querySelectorAll('button[aria-label], [role="button"][aria-label]')]
-      .find((b) => /וידאו|video/i.test(b.getAttribute('aria-label')));
+    // ליד שיחת הווידאו; במרחבים אין כזה - אז ליד "פגישה", ואם גם הוא לא קיים - ליד החיפוש בסרגל העליון
+    const top = card.getBoundingClientRect().top + 72;
+    const btns = [...card.querySelectorAll('button[aria-label], [role="button"][aria-label]')]
+      .filter((b) => { const r = b.getBoundingClientRect(); return r.width && r.top < top; });
+    const vid = [/וידאו|video/i, /פגישה|meet/i, /חיפוש|search/i].reduce((f, re) => f || btns.find((b) => re.test(b.getAttribute('aria-label'))), null);
     if (!vid) return;
     let at = vid;
     while (at.parentElement && at.parentElement !== card && at.parentElement.childElementCount === 1) at = at.parentElement;
@@ -1018,12 +1056,14 @@
     if (!head) return;
     addCls(head, 'wa-chathead');
     // כפתורים עם רקע בהיר משלהם (למשל שיחת וידאו) - רקע לבן-שקוף על הפס
+    const btns = [];
     head.querySelectorAll('*').forEach((e) => {
       if (headSeen.has(e) || e instanceof SVGElement) return;
       headSeen.add(e);
       const b = parseRGB(getComputedStyle(e).backgroundColor);
-      if (b && b.a > 0.5 && lum(b) > 200 && b.g < 250) addCls(e, 'wa-headbtn');
+      if (b && b.a > 0.5 && lum(b) > 200 && b.g < 250) btns.push(e);
     });
+    btns.forEach((e) => addCls(e, 'wa-headbtn'));
     const hr = head.getBoundingClientRect();
     document.querySelectorAll('[jsname="Zpe2Q"]').forEach((z) => {
       const r = z.getBoundingClientRect();
@@ -1105,17 +1145,23 @@
         return NodeFilter.FILTER_ACCEPT;
       },
     });
+    // קודם קוראים את כל הצבעים ורק אחר כך משנים מחלקות - שינוי באמצע מכריח חישוב סגנון מחדש לכל אלמנט
+    const todo = [];
     for (let e = walk.nextNode(); e; e = walk.nextNode()) {
       const cs = getComputedStyle(e), bg = parseRGB(cs.backgroundColor), fg = parseRGB(cs.color);
-      const light = isSelBg(bg), strong = !!bg && bg.a > 0.5 && bg.b >= 180 && bg.b - bg.r >= 100;
-      setCls(e, 'wa-acc-l', light);
-      setCls(e, 'wa-acc', strong);
-      setCls(e, 'wa-acc-tx', !!fg && fg.b - fg.r >= 60 && lum(fg) < 160);
+      let pb = false;
       if (!accPseudo.has(e) && !e.classList.contains('wa-compose')) {   // (הכדור של תיבת הכתיבה נשאר לבן)
         accPseudo.add(e);
         const b = getComputedStyle(e, '::before');
-        if (b.content !== 'none') { const c = parseRGB(b.backgroundColor); if (c && c.b >= 180 && c.b - c.r >= 100) addCls(e, 'wa-acc-b'); }
+        if (b.content !== 'none') { const c = parseRGB(b.backgroundColor); pb = !!c && c.b >= 180 && c.b - c.r >= 100; }
       }
+      todo.push([e, isSelBg(bg), !!bg && bg.a > 0.5 && bg.b >= 180 && bg.b - bg.r >= 100, !!fg && fg.b - fg.r >= 60 && lum(fg) < 160, pb]);
+    }
+    for (const [e, light, strong, tx, pb] of todo) {
+      setCls(e, 'wa-acc-l', light);
+      setCls(e, 'wa-acc', strong);
+      setCls(e, 'wa-acc-tx', tx);
+      if (pb) addCls(e, 'wa-acc-b');
     }
   }
 
@@ -1149,14 +1195,20 @@
 
   /* ================= העיצוב עצמו ================= */
   function tag() {
+    const t0 = performance.now();
     try { tagInner(); }
     catch (e) {
       tag.error = (e && (e.stack || e.message)) || String(e);
       if (!tag.warned) { tag.warned = true; console.warn('[ChatsApp] שגיאה בעיצוב (הסקריפט ממשיך):', e); }
     }
+    tag.ms = Math.round(performance.now() - t0);                 // לאבחון: כמה זמן לקח הסבב האחרון / הארוך ביותר
+    tag.maxMs = Math.max(tag.maxMs || 0, tag.ms);
   }
   function tagInner() {
     if (stopped) return;
+    const T = {}; let tp = performance.now();
+    const lap = (k) => { const n = performance.now(); T[k] = Math.round(n - tp); tp = n; };   // לאבחון: זמן כל שלב
+    tag.sections = T;
     theme();
     const msgs = [...document.querySelectorAll(SEL.message)];
     const state = [];   // לכל הודעה: {el, bubble, own, scroller}
@@ -1215,24 +1267,27 @@
         // הבועה כבר צבועה שלנו ואי אפשר לקרוא את הצבע המקורי: נשארים עם ההחלטה הקודמת
         if (own === null && prev) own = prev === 'true';
       }
-      state.push({ el, bubble: el.parentElement, own, sender, scroller: null });
+      // (קריאות בלבד בשלב הזה - מדידות אחרי כתיבה מכריחות את הדפדפן לחשב מחדש את כל הדף, פעם לכל הודעה)
+      const b = el.parentElement, g = el.closest(SEL.group);
+      // יש שורת שם/שעה מעל הבועה = תחילת רצף. כמו בוואטסאפ, רק להודעה הראשונה ברצף יש זנב
+      const head = !!(g && b && b.getBoundingClientRect().top - g.getBoundingClientRect().top > 8);
+      const hasMedia = !!b && [...b.querySelectorAll('video, canvas, iframe, img')].some((m) => !m.closest('[data-member-id]') && m.offsetWidth > 60);
+      state.push({ el, bubble: b, own, sender, head, hasMedia, scroller: scrollerOf(el) });
     });
 
+    lap('who');
     // 2) סימון בועות, זנב, רקע
-    let prevKey = null;
+    let prevOwn = null, prevPane = null;
     for (const s of state) {
       if (s.own === null || !s.bubble) continue;
       const b = s.bubble;
       addCls(b, 'wa-bubble');
       setAttr(b, 'data-wa-own', String(s.own));
-      // זנב בהודעה הראשונה של כל קבוצה של גוגל (שם+שעה מעליה): קבוצה חדשה מתחילה אחרי הפסקה או ביום חדש, כמו בוואטסאפ
-      const key = s.el.closest(SEL.group) || s.sender || String(s.own);
-      setAttr(b, 'data-wa-tail', String(key !== prevKey));
-      const hasMedia = [...b.querySelectorAll('video, canvas, iframe, img')].some((m) => !m.closest('[data-member-id]') && m.offsetWidth > 60);
-      setCls(b, 'wa-media', hasMedia);
-      prevKey = key;
+      // זנב: בהודעה הראשונה ברצף (שורת שם/שעה מעליה - אחרי הפסקה או ביום חדש), או כשהשולח מתחלף
+      setAttr(b, 'data-wa-tail', String(s.head || s.own !== prevOwn || s.scroller !== prevPane));
+      setCls(b, 'wa-media', s.hasMedia);
+      prevOwn = s.own; prevPane = s.scroller;
 
-      s.scroller = findScroller(s.el);
       if (s.scroller) {
         addCls(s.scroller, 'wa-scroller');
         const main = s.scroller.closest('[role="main"]');
@@ -1246,6 +1301,7 @@
       }
     }
 
+    lap('bubbles');
     // 3) "נקרא": מזהים את האווטאר/הרשימה של גוגל, מסתירים אותם, ומחשבים עד איזו הודעה הצד השני קרא.
     //    זיהוי אחיד בכל ריצה (איחוד של שתי שיטות) כדי שלא יהיה מעבר מצבים שגורם לריצוד.
     let readIdx = -1, seenCount = 0;
@@ -1314,6 +1370,7 @@
       a.querySelectorAll(':scope > .wa-ticks').forEach((x) => x.remove());
     });
 
+    lap('read');
     // 4) שעה + וי וי בתוך הבועה (בפינה השמאלית התחתונה), וציטוט
     state.forEach((s, i) => { try {
       if (!s.bubble || s.own === null) return;
@@ -1339,13 +1396,17 @@
       try { fitQuote(b); } catch (e) { tag.error = 'fitQuote: ' + e; }
     } catch (e) { tag.error = 'meta: ' + e; } });
 
+    lap('meta');
     bgWatch();
     headerFix();
     composeFix();
+    lap('head+compose');
     try { barsFix(); } catch (e) { tag.error = 'bars: ' + e; }
+    lap('bars');
     try { frameMedia(oneSided, seenSlots); } catch (e) { tag.error = 'media: ' + e; }
     try { voiceBoxes(oneSided); } catch (e) { tag.error = 'voice: ' + e; }
     try { boxMeta(seenSlots); } catch (e) { tag.error = 'boxmeta: ' + e; }
+    lap('media');
     try {
       // חלון השיחה הראשי, וגם חלונית השרשור (חלון נפרד לידו)
       const main = document.querySelector('.wa-main');
@@ -1353,10 +1414,14 @@
       if (main) cards.add(cardOf(main));
       document.querySelectorAll('.wa-scroller').forEach((sc) => { if (!main || !main.contains(sc)) cards.add(cardOf(sc)); });
       cards.forEach((card) => { addCls(card, 'wa-card'); if (main && card.contains(main)) { darkButton(card); chatHead(card, main); } });
+      lap('card');
       darkFix([...cards]);
+      lap('dark');
       accentFix([...cards]);
+      lap('accent');
     } catch (e) { tag.error = 'dark: ' + e; }
     try { iconsFix(); } catch (e) { tag.error = 'icons: ' + e; }
+    lap('icons');
     tag.last = { total: msgs.length, seenCount, readUpTo: readIdx, state, seenSlots: seenSlots.length };
   }
 
@@ -1364,12 +1429,20 @@
   // סבב עיצוב לכל היותר פעם ב-200ms: גוגל משנה את הדף כל הזמן (שעונים, ריחוף, אנימציות),
   // וסבב על כל שינוי תקע את הלשונית. אחרי שליחה רצים מיד (onSend), כך שההודעה עדיין נצבעת מהר.
   const MIN_GAP = 200;
-  let queued = false, lastTag = 0;
+  let queued = false, lastTag = 0, urgent = 0;
   function schedule() {
     if (queued || stopped) return;
     queued = true;
-    setTimeout(() => { queued = false; lastTag = Date.now(); tag(); }, Math.max(16, MIN_GAP - (Date.now() - lastTag)));
+    setTimeout(() => { if (!queued) return; queued = false; lastTag = Date.now(); tag(); }, Math.max(16, MIN_GAP - (Date.now() - lastTag)));
   }
+  // הגיעו הודעות חדשות (מעבר לשיחה, הודעה נכנסת): מעצבים מיד, לפני שהדפדפן מצייר - כדי שלא יראו לרגע בעיצוב של גוגל
+  function scheduleNow() {
+    if (urgent || stopped) return;
+    const run = () => { if (!urgent) return; urgent = 0; queued = false; lastTag = Date.now(); tag(); };
+    urgent = requestAnimationFrame(run);
+    setTimeout(run, 100);   // לשונית ברקע: requestAnimationFrame לא רץ
+  }
+  const hasMessage = (n) => n.nodeType === 1 && (n.matches(SEL.message) || !!n.querySelector(SEL.message));
 
   // גוגל מציירת מחדש בועות (למשל כשהשרת מאשר הודעה ששלחתי) ומוחקת את הסימון שלנו בלי להוסיף אלמנט -
   // לכן מאזינים גם להסרה של התכונות שלנו מהבועות (ורק להסרה, כדי שהשינויים שלנו עצמנו לא יפעילו סבב נוסף)
@@ -1379,7 +1452,8 @@
       if (m.type === 'childList') {
         const t = m.target;
         if (t.nodeType === 1 && t.closest && t.closest(OUR_NODES)) continue;   // השעה/הוי וי שלנו
-        schedule(); return;
+        if ([...m.addedNodes].some(hasMessage)) { scheduleNow(); return; }
+        schedule(); continue;
       }
       if (m.attributeName === 'data-user-id' || m.attributeName === 'data-theme') { schedule(); return; }
       if (m.attributeName === 'disabled') { if (m.target.closest && m.target.closest('.wa-sendgrp')) { schedule(); return; } continue; }   // כפתור השליחה הופעל/הושבת
@@ -1416,6 +1490,8 @@
 
   window.addEventListener('resize', schedule);
   window.addEventListener('storage', onStorage);
+  window.addEventListener('message', onBridge);
+  window.postMessage({ chatsapp: 'hello', on: darkOn() }, '*');
   // "נקרא": גוגל מחזיקה אווטאר מוסתר ליד כל הודעה ורק מחליפה איזה מהם גלוי (שינוי עיצוב, לא הוספת אלמנט),
   // כך שה-MutationObserver לא מתעורר כשהצד השני קורא בלי לענות. בדיקה קבועה כל 2 שניות (רק כשהלשונית גלויה).
   // רק כשיש הודעה שלי שעוד לא נקראה (VV אפורים) - אחרת אין מה לבדוק
@@ -1436,6 +1512,7 @@
       metaOutsideBubble: [...document.querySelectorAll('.wa-bubble > .wa-meta')].filter((m) => { const a = m.getBoundingClientRect(), b = m.parentElement.getBoundingClientRect(); return a.bottom > b.bottom + 1 || a.top < b.top - 1; }).length,
       rtl: document.documentElement.getAttribute('data-wa-rtl'),
       lastError: tag.error || '-',
+      lastPassMs: tag.ms, slowestPassMs: tag.maxMs, passSections: tag.sections,
       background: document.documentElement.getAttribute('data-wa-bg') || '-',
       metaRendered: document.querySelectorAll('.wa-meta').length,
       quotesFound: document.querySelectorAll('.wa-quote').length,
@@ -1539,6 +1616,7 @@
     observer.disconnect();
     window.removeEventListener('resize', schedule);
     window.removeEventListener('storage', onStorage);
+    window.removeEventListener('message', onBridge);
     clearInterval(readPoll);
     clearTimeout(dkTimer);
     clearTimeout(accTimer);
