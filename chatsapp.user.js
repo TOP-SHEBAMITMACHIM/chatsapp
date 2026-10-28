@@ -1310,7 +1310,7 @@
       if (c !== undefined && (c === null || c.contains(el))) return c;
       let p = el.closest(SEL.scroller);
       for (let n = el.parentElement; !p && n && n !== document.body; n = n.parentElement) {
-        if (/(auto|scroll)/.test(getComputedStyle(n).overflowY)) p = n;
+        if (/(auto|scroll)/.test(getComputedStyle(n).overflowY) && n.clientHeight > 150) p = n;   // (לא תיבת קוד וכד' בתוך הודעה)
       }
       panes.set(el, p || null);
       return p || null;
@@ -1368,7 +1368,9 @@
       // יש שורת שם/שעה מעל הבועה = תחילת רצף. כמו בוואטסאפ, רק להודעה הראשונה ברצף יש זנב
       const head = !!(g && b && b.getBoundingClientRect().top - g.getBoundingClientRect().top > 8);
       const hasMedia = !!b && [...b.querySelectorAll('video, canvas, iframe, img')].some((m) => !m.closest('[data-member-id]') && m.offsetWidth > 60);
-      state.push({ el, bubble: b, own, sender, head, hasMedia, scroller: scrollerOf(el) });
+      // אזור הגלילה: findScroller מוצא אותו רק כשכבר יש בו גלילה. שרשור עם 2-3 הודעות עוד לא גולל, ובלי
+      // הגיבוי (העוטף הגליל הקרוב, גם בלי גלילה) לא היה מקבל את רקע הוואטסאפ עד ההודעה השלישית
+      state.push({ el, bubble: b, own, sender, head, hasMedia, scroller: scrollerOf(el) || paneOf(el) });
     });
 
     lap('who');
@@ -1566,9 +1568,32 @@
     try { iconsFix(); } catch (e) { tag.error = 'icons: ' + e; }
     lap('icons');
     tag.last = { total: msgs.length, seenCount, readUpTo: readIdx, state, seenSlots: seenSlots.length };
+    traceSend(state);
   }
 
   /* ================= הפעלה ================= */
+  // אבחון "לוקח זמן עד שההודעה שלי נהיית ירוקה": בכל סבב ב-8 השניות אחרי שליחה רושמים את ההודעות החדשות
+  // (בלי תוכן - רק זמן, אורך, מזהה שולח מקוצר והחלטה), וגם אם הטקסט ששלחתי כבר מופיע בדף בלי להיות "הודעה"
+  let sendTrace = null;
+  function traceSend(state) {
+    const tr = sendTrace;
+    if (!tr || Date.now() - tr.at > 8000 || tr.events.length > 40) return;
+    const t = Date.now() - tr.at;
+    const fresh = state.filter((s) => (firstSeen.get(s.el) || 0) >= tr.at - 300);
+    const last = sentTexts[sentTexts.length - 1];
+    let loose = 0;   // הטקסט ששלחתי בדף, מחוץ להודעה מזוהה (הודעה "בדרך" במבנה אחר)
+    if (last && last.at === tr.at) {
+      for (const sc of document.querySelectorAll('.wa-scroller')) {
+        const w = document.createTreeWalker(sc, NodeFilter.SHOW_TEXT);
+        for (let n = w.nextNode(); n; n = w.nextNode()) if (norm(n.textContent) === last.txt && !n.parentElement.closest(SEL.message)) loose++;
+      }
+    }
+    const ev = t + 'ms: ' + fresh.map((s) => 'len' + norm(s.el.textContent).length + ' from=' + String(s.sender || '-').slice(-4) +
+      ' own=' + s.own + (s.bubble && s.bubble.classList.contains('wa-bubble') ? '' : ' (no-bubble)')).join(' | ') + (loose ? ' | loose=' + loose : '');
+    const key = ev.slice(ev.indexOf(':') + 1);
+    if (tr.lastKey !== key) { tr.lastKey = key; tr.events.push(ev); }
+  }
+
   // סבב עיצוב לכל היותר פעם ב-200ms: גוגל משנה את הדף כל הזמן (שעונים, ריחוף, אנימציות),
   // וסבב על כל שינוי תקע את הלשונית. אחרי שליחה רצים מיד (onSend), כך שההודעה עדיין נצבעת מהר.
   const MIN_GAP = 200;
@@ -1624,7 +1649,8 @@
     const box = e.target.closest(SEL.composer) || (row && row.querySelector(SEL.composer));
     const txt = norm(box && box.innerText);
     if (txt) { sentTexts.push({ txt, at: lastSend }); if (sentTexts.length > 5) sentTexts.shift(); }
-    [30, 150, 400, 900, 2000].forEach((ms) => setTimeout(tag, ms));
+    sendTrace = { at: lastSend, len: txt.length, events: [] };   // לאבחון (waDebug): מה קרה להודעה ב-8 השניות אחרי השליחה
+    [30, 150, 400, 900, 2000, 3500, 6000].forEach((ms) => setTimeout(tag, ms));
   }
   document.addEventListener('keydown', onSend, true);
   // הקלדה משנה טקסט קיים (לא מוסיפה אלמנטים), אז ה-observer לא רואה אותה - צריך בשביל העיגול הירוק (מיקרופון/שליחה)
@@ -1661,6 +1687,7 @@
       rtl: document.documentElement.getAttribute('data-wa-rtl'),
       lastError: tag.error || '-',
       lastPassMs: tag.ms, slowestPassMs: tag.maxMs, passSections: tag.sections,
+      lastSendTrace: sendTrace ? sendTrace.events : '-',
       background: document.documentElement.getAttribute('data-wa-bg') || '-',
       metaRendered: document.querySelectorAll('.wa-meta').length,
       quotesFound: document.querySelectorAll('.wa-quote').length,
