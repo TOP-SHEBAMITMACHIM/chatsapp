@@ -622,7 +622,8 @@
     // רוב הבועות: רק תוכן ההודעה (והשעה שלנו). ציטוט תמיד יושב לצד ההודעה, אז אם אין שם שום טקסט - אין מה לסרוק
     // (הסריקה שלמטה מודדת ומחשבת סגנון לעשרות אלמנטים בכל בועה, וזה מה שהאט את המעבר בין שיחות)
     const extra = [...b.children].some((c) => !c.matches(SEL.message) && !c.classList.contains('wa-meta')
-      && !c.classList.contains('wa-seen') && !c.matches(SEL.receipts) && c.textContent.trim());
+      && !c.classList.contains('wa-seen') && !c.matches(SEL.receipts) && !c.matches(SEL.toolbar) && !c.querySelector(SEL.toolbar)   // (סרגל הריחוף - לא ציטוט)
+      && c.textContent.trim());
     if (!extra) return null;
     const minW = b.getBoundingClientRect().width * 0.45;
     const cands = b.querySelectorAll(':scope > *, :scope > * > *, :scope > * > * > *, :scope > * > * > * > *');
@@ -630,6 +631,9 @@
       if (d.matches(SEL.message) || d.closest('.wa-meta') || d.closest('.wa-seen') || d.matches(SEL.receipts) || d.closest(SEL.receipts)) continue;
       if (isOverlay(d, b)) continue;
       if (!d.textContent.trim() || isBigMedia(d)) continue;
+      // טקסט בעיצוב "ציטוט בלוק" (מתפריט העיצוב) הוא לא תשובה להודעה: תשובה תמיד כוללת שם + טקסט (שתי שורות לפחות).
+      // במעבר עכבר גוגל נותנת לו רקע, ובלי הבדיקה הזו הוא סומן כציטוט והבועה נשברה
+      if (d.closest('blockquote') || d.querySelector('blockquote') || (d.innerText || '').split('\n').filter((l) => l.trim()).length < 2) continue;
       if (d.offsetWidth < minW || d.offsetHeight < 24) continue;
       const c = parseRGB(getComputedStyle(d).backgroundColor);
       if (c && c.a > 0.05) return d;                       // תיבה עם רקע משלה = ציטוט
