@@ -223,6 +223,8 @@
   .wa-tk[data-state="read"] { color: ${TICK_READ}; }
   .wa-tk[data-hidden="true"] { display: none; }
   .wa-time:empty { display: none; }
+  /* קבוצה: כמה קראו (עד שכולם קראו והוי וי כחולים) */
+  .wa-meta[data-wa-rc]::before { content: attr(data-wa-rc); order: -1; font-size: 11px; color: var(--wa-sub); margin-inline-end: -2px; }
 
   /* ---- ציטוט (תשובה להודעה), כמו בוואטסאפ: תיבה כהה שקופה עם פס צבעוני בצד ימין, שם מודגש וטקסט אפור ---- */
   /* הציטוט וכל העוטפים שלו נמתחים לכל רוחב הבועה (גוגל משאירה להם רווחים/רוחב מקסימלי) */
@@ -689,7 +691,7 @@
   // רוחב שורת השעה: נמדד פעם אחת לכל צורה (אורך השעה + עם/בלי וי וי) ונשמר, במקום למדוד כל בועה בכל סבב
   const metaWidths = new Map();
   function metaWidth(m) {
-    const key = (m.querySelector('.wa-time') || {}).textContent.length + '|' + ((m.querySelector('.wa-tk') || {}).getAttribute?.('data-hidden') || '');
+    const key = (m.querySelector('.wa-time') || {}).textContent.length + '|' + ((m.querySelector('.wa-tk') || {}).getAttribute?.('data-hidden') || '') + '|' + (m.getAttribute('data-wa-rc') || '').length;
     if (metaWidths.has(key)) return metaWidths.get(key);
     const ws = [...m.children].map((c) => c.getBoundingClientRect().width).filter((w) => w > 0);
     const w = Math.ceil(ws.reduce((a, x) => a + x, 0) + (ws.length > 1 ? 12 : 0));
@@ -1370,6 +1372,9 @@
     // 3) "נקרא": מזהים את האווטאר/הרשימה של גוגל, מסתירים אותם, ומחשבים עד איזו הודעה הצד השני קרא.
     //    זיהוי אחיד בכל ריצה (איחוד של שתי שיטות) כדי שלא יהיה מעבר מצבים שגורם לריצוד.
     let readIdx = -1, seenCount = 0;
+    // בקבוצה: עד איזו הודעה כל אחד קרא (האווטאר של כל אחד יושב אחרי ההודעה האחרונה שהוא קרא)
+    const readerPos = new Map();
+    const pid = (id) => (String(id).match(/d{6,}/) || [String(id)])[0];   // מזהה אחיד (ב-data-member-id יש לפעמים קידומת)
     const scroller = (state.find((s) => s.scroller) || {}).scroller || document.querySelector(SEL.scroller);
     const seenSlots = [];
     const anchors = new Set();
@@ -1395,7 +1400,11 @@
         seenCount++;
         // עד איזו הודעה קראו: ההודעה האחרונה שמופיעה לפני האווטאר
         for (let i = state.length - 1; i >= 0; i--) {
-          if (state[i].el.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING) { readIdx = Math.max(readIdx, i); break; }
+          if (state[i].el.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING) {
+            readIdx = Math.max(readIdx, i);
+            ids.forEach((id) => { const k = pid(id); if (k && !(MY_ID && k.includes(MY_ID))) readerPos.set(k, Math.max(readerPos.get(k) ?? -1, i)); });
+            break;
+          }
         }
         setAttr(c, 'data-wa-state', 'read');
         addCls(c, 'wa-seen');
@@ -1439,6 +1448,11 @@
     // VV: לא במרחב (שם "נקרא" לא אומר הרבה). אבל צ'אט קבוצתי (לא מרחב) מקבל אצל גוגל מזהה של מרחב, ושם כן מוצגים
     // אווטארים של מי שקרא - אז אם יש כאלה בשיחה, זו קבוצה ומציגים VV
     const ticksHere = (el) => !inSpace(el) || seenCount > 0;
+    // קבוצה: כמה קראו כל הודעה, מתוך כמה אנשים שהסקריפט מכיר בשיחה (כל מי ששלח הודעה או מופיע כקורא, חוץ ממני).
+    // VV כחולים רק כשכולם קראו; עד אז אפורים, ולידם מספר הקוראים
+    const members = new Set(readerPos.keys());
+    state.forEach((s) => { if (s.own === false && s.sender) members.add(pid(s.sender)); });
+    const readersOf = (i) => { let n = 0; readerPos.forEach((p) => { if (p >= i) n++; }); return n; };
     // 4) שעה + וי וי בתוך הבועה (בפינה השמאלית התחתונה), וציטוט
     state.forEach((s, i) => { try {
       if (!s.bubble || s.own === null) return;
@@ -1452,8 +1466,14 @@
       const time = msgTime(s.el);
       const timeEl = m.querySelector('.wa-time'), tk = m.querySelector('.wa-tk');
       if (timeEl.textContent !== time) timeEl.textContent = time;
-      if (s.own === true && ticksHere(s.el)) { delAttr(tk, 'data-hidden'); setAttr(tk, 'data-state', i <= readIdx ? 'read' : 'sent'); }
-      else setAttr(tk, 'data-hidden', 'true');   // הודעה של מישהו אחר, או הודעה שלי במרחב (לא קבוצה) - בלי וי וי
+      const group = inSpace(s.el) && seenCount > 0;
+      if (s.own === true && ticksHere(s.el)) {
+        delAttr(tk, 'data-hidden');
+        const n = group ? readersOf(i) : 0;
+        setAttr(tk, 'data-state', (group ? n > 0 && n >= members.size : i <= readIdx) ? 'read' : 'sent');
+        if (group && n > 0 && n < members.size) setAttr(m, 'data-wa-rc', String(n)); else delAttr(m, 'data-wa-rc');
+      }
+      else { setAttr(tk, 'data-hidden', 'true'); delAttr(m, 'data-wa-rc'); }   // הודעה של מישהו אחר, או הודעה שלי במרחב (לא קבוצה) - בלי וי וי
       // מצב השורה: inline = על אותה שורה עם הטקסט (הודעה קצרה); below = שורה משלה בתחתית. וי וי בקצה הבועה מחייב below.
       const txt = (s.el.textContent || '').trim();
       const short = TICKS_LAYOUT !== 'bubble-start' && txt.length <= 28 && !/\n/.test(s.el.innerText || '')
