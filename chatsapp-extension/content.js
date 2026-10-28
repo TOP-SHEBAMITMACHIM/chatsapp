@@ -1626,12 +1626,19 @@
       }
       if (m.attributeName === 'data-user-id' || m.attributeName === 'data-theme') { schedule(); return; }
       if (m.attributeName === 'disabled') { if (m.target.closest && m.target.closest('.wa-sendgrp')) { schedule(); return; } continue; }   // כפתור השליחה הופעל/הושבת
+      if (m.attributeName === 'class') {
+        // גוגל כתבה מחדש את המחלקות של בועה (למשל כשהשרת מאשר הודעה ששלחתי במרחב) ומחקה את wa-bubble -
+        // בלי זה ההודעה נשארה לבנה עד השינוי הבא בדף. בודקים רק אם נמחקה מחלקה שלנו (בדיקת מחרוזת זולה)
+        const old = m.oldValue;
+        if (old && old.indexOf('wa-bubble') !== -1 && !m.target.classList.contains('wa-bubble')) { scheduleNow(); return; }
+        continue;
+      }
       if (m.oldValue !== null && !m.target.hasAttribute(m.attributeName)) { schedule(); return; }
     }
   });
   observer.observe(document.documentElement, {
     subtree: true, childList: true, attributes: true, attributeOldValue: true,
-    attributeFilter: ['data-user-id', 'data-theme', 'data-wa-own', 'data-wa-tail', 'disabled'],
+    attributeFilter: ['data-user-id', 'data-theme', 'data-wa-own', 'data-wa-tail', 'disabled', 'class'],
   });
 
   // זיהוי שליחה: מריצים את העיצוב כמה פעמים מיד אחרי השליחה, כדי שההודעה החדשה תצבע בלי לחכות
@@ -1651,7 +1658,7 @@
     const txt = norm(box && box.innerText);
     if (txt) { sentTexts.push({ txt, at: lastSend }); if (sentTexts.length > 5) sentTexts.shift(); }
     sendTrace = { at: lastSend, len: txt.length, events: [] };   // לאבחון (waDebug): מה קרה להודעה ב-8 השניות אחרי השליחה
-    [30, 150, 400, 900, 2000, 3500, 6000].forEach((ms) => setTimeout(tag, ms));
+    [30, 150, 400, 900, 2000, 3500, 6000, 8000, 12000].forEach((ms) => setTimeout(tag, ms));   // (שרת שמאשר לאט)
   }
   document.addEventListener('keydown', onSend, true);
   // הקלדה משנה טקסט קיים (לא מוסיפה אלמנטים), אז ה-observer לא רואה אותה - צריך בשביל העיגול הירוק (מיקרופון/שליחה)
