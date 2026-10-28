@@ -35,7 +35,8 @@
     const now = Date.now();
     if (now - iconsLast < 700) { if (!iconsTimer) iconsTimer = setTimeout(() => { iconsTimer = 0; iconsFix(); }, 750); return; }
     iconsLast = now;
-    const cand = document.querySelectorAll('[jsname="yPINCb"] [jsname], [jsname="yPINCb"] [role], .V6');   // רשימת הצ'אטים + הפס של Gmail (לא רשימת התיקיות של הדואר)
+    // רשימת הצ'אטים (גם כשהיא ב-iframe נפרד בתוך Gmail) + הפס של Gmail (לא רשימת התיקיות של הדואר)
+    const cand = document.querySelectorAll('[jsname="yPINCb"] [jsname], [jsname="yPINCb"] [role], [role="listitem"][data-group-id], [role="listitem"][data-group-id] [role="link"], .V6');
     cand.forEach((e) => {
       const cs = getComputedStyle(e);
       const sel = isSelBg(rgbOf(cs.backgroundColor));
@@ -222,7 +223,6 @@
   html[data-wa-ticks="whatsapp"] .wa-meta > .wa-tk { order: 2; }
   .wa-tk { display: inline-block; flex: none; width: 16px; height: 10px; color: ${TICK_SENT}; overflow: visible; }
   .wa-tk[data-state="read"] { color: ${TICK_READ}; }
-  .wa-tk:not([data-state="read"]) path + path { display: none; }              /* עד שנקרא: V אחד אפור (בגוגל צ'אט אין מצב "הגיע") */
   .wa-tk[data-hidden="true"] { display: none; }
   .wa-time:empty { display: none; }
 
@@ -382,19 +382,48 @@
   [jsname="Zpe2Q"].wa-onhead, [jsname="Zpe2Q"].wa-onhead * { color: var(--wa-head-text) !important; -webkit-text-fill-color: var(--wa-head-text); }
   [jsname="Zpe2Q"].wa-onhead svg { color: var(--wa-head-text) !important; }
 
-  /* ---- תיבת הכתיבה כמו בוואטסאפ: אייקונים אפורים, "+" בלי עיגול, ושליחה בעיגול ירוק עם חץ לבן ---- */
-  .wa-compose-panel button, .wa-compose button { color: var(--wa-icon) !important; }
-  .wa-compose-panel button svg, .wa-compose button svg { color: var(--wa-icon) !important; }
+  /* ---- תיבת הכתיבה כמו בוואטסאפ ----
+     כדור לבן מעוגל על רקע הטפט: אימוג'י בצד ההתחלה, הטקסט, ובסוף עיצוב/GIF/צירוף קובץ.
+     מחוץ לכדור עיגול ירוק: מיקרופון כשהתיבה ריקה (לחיצה = הקלטת הודעה קולית של גוגל), וחץ שליחה כשיש טקסט.
+     הפיצ'רים של גוגל נשארים: "+" (כלי Workspace) בצד, וחץ "תזמון השליחה" ליד העיגול כשיש טקסט */
+  .wa-compose-panel { background-color: transparent !important; box-shadow: none !important; }
+  .wa-compose::before { background: var(--wa-input) !important; opacity: 1 !important; border-radius: 26px !important; box-shadow: 0 1px .5px rgba(11,20,26,.13) !important; }
+  .wa-compose button, .wa-compose button svg { color: var(--wa-icon) !important; }
+  .wa-compose [role="textbox"][contenteditable="true"] { font-size: 15px !important; }
+  /* האימוג'י עובר לתחילת הכדור (כמו בוואטסאפ) והטקסט זז כדי לפנות לו מקום. המבנה של גוגל לא משתנה - רק המיקום */
+  .wa-compose [jsname="bXurze"] { position: static !important; }
+  .wa-compose [jsname="bXurze"] > div > :has([jsname="JlEEbd"]) { position: absolute !important; inset-inline-start: 10px; top: 50%; transform: translateY(-50%); z-index: 1; }
+  .wa-compose > div:has([role="textbox"]) { padding-inline-start: 38px !important; }
+  .wa-compose [jsname="bXurze"] > div > :has([jsname="EATp9"]) { display: none !important; }      /* המיקרופון עובר לעיגול הירוק */
+  /* "+" (כלי Workspace): אייקון אפור בלי עיגול */
   [jsname="kVb47c"] { box-shadow: none !important; background: transparent !important; }
   [jsname="kVb47c"], [jsname="kVb47c"] * { -webkit-text-fill-color: var(--wa-icon); }
   [jsname="kVb47c"] svg { color: var(--wa-icon) !important; }
-  :is([jsname="GBTyxb"], button[aria-label="שליחת הודעה"], button[aria-label="Send message"]):not([disabled]) {
-    background: var(--wa-acc) !important; color: #fff !important; border-radius: 50% !important;
-    width: 42px !important; height: 42px !important; align-self: center !important; margin: 0 4px !important;
+  /* העיגול הירוק */
+  .wa-sendgrp { display: flex !important; align-items: center !important; gap: 2px; width: auto !important; }
+  .wa-sendgrp, .wa-sendgrp :is(div, span) { background-color: transparent !important; box-shadow: none !important; }
+  .wa-sendgrp :is(div, span)::before { opacity: 0 !important; }   /* שכבת ה"מצב" של גוגל (ריבוע צבעוני שקוף) */
+  [jsname="TFQmwf"]::after { box-shadow: none !important; }   /* הקו האפור מעל תיבת הכתיבה */
+  .wa-sendgrp [jsname="GBTyxb"] {
+    background: var(--wa-acc) !important; color: #fff !important; border-radius: 50% !important; opacity: 1 !important;
+    width: 48px !important; height: 48px !important; min-width: 48px !important; padding: 0 !important; margin: 0 4px !important;
+    display: inline-flex !important; align-items: center !important; justify-content: center !important; position: relative !important;
+    box-shadow: 0 1px .5px rgba(11,20,26,.2) !important;
   }
-  :is([jsname="GBTyxb"], button[aria-label="שליחת הודעה"], button[aria-label="Send message"]):not([disabled]) svg { color: #fff !important; }
-  :is([jsname="GBTyxb"], button[aria-label="שליחת הודעה"], button[aria-label="Send message"]):not([disabled]) *::before { opacity: 0 !important; }
-  .wa-compose [role="textbox"][contenteditable="true"] { font-size: 15px !important; }
+  .wa-sendgrp [jsname="GBTyxb"] svg { color: #fff !important; fill: #fff !important; }
+  .wa-sendgrp [jsname="GBTyxb"] *::before, .wa-sendgrp [jsname="GBTyxb"]::before { opacity: 0 !important; }
+  .wa-sendgrp [jsname="GBTyxb"]:hover { filter: brightness(1.06); }
+  /* תיבה ריקה: מיקרופון במקום החץ, והלחיצה עוברת לכפתור ההקלטה של גוגל */
+  .wa-sendgrp[data-wa-empty="true"] { cursor: pointer; }
+  .wa-sendgrp[data-wa-empty="true"] [jsname="GBTyxb"] { pointer-events: none !important; }
+  .wa-sendgrp[data-wa-empty="true"] [jsname="GBTyxb"] > * { visibility: hidden !important; }
+  .wa-sendgrp[data-wa-empty="true"] [jsname="GBTyxb"]::after {
+    content: ""; position: absolute; inset: 0; margin: auto; width: 24px; height: 24px; background: #fff;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20d%3D%22M12%2014a3%203%200%200%200%203-3V5a3%203%200%200%200-6%200v6a3%203%200%200%200%203%203zm5.3-3a.9.9%200%200%200-.9.8A4.4%204.4%200%200%201%2012%2015.6a4.4%204.4%200%200%201-4.4-3.8.9.9%200%200%200-.9-.8.9.9%200%200%200-.9%201A6.2%206.2%200%200%200%2011%2017.4V20a1%201%200%200%200%202%200v-2.6a6.2%206.2%200%200%200%205.2-5.4.9.9%200%200%200-.9-1z%22%2F%3E%3C%2Fsvg%3E") center / contain no-repeat;
+  }
+  .wa-sendgrp[data-wa-empty="true"] [jsname="ssKfee"] { display: none !important; }
+  .wa-sendgrp [jsname="ssKfee"] { background: transparent !important; box-shadow: none !important; color: var(--wa-icon) !important; }
+  .wa-sendgrp [jsname="ssKfee"] *::before, .wa-sendgrp [jsname="ssKfee"]::before { opacity: 0 !important; }
 
   /* כפתור הירח בסרגל העליון של השיחה */
   .wa-darkbtn {
@@ -832,7 +861,33 @@
 
   // כל תיבות הכתיבה (גם זו שבחלונית השרשור)
   function composeFix() {
-    document.querySelectorAll(SEL.composer).forEach((box) => { if (!box.closest('.wa-compose')) composeOne(box); });
+    document.querySelectorAll(SEL.composer).forEach((box) => {
+      if (!box.closest('.wa-compose')) composeOne(box);
+      sendCircle(box);
+    });
+  }
+  // העיגול הירוק של וואטסאפ: כפתור השליחה של גוגל. כשהתיבה ריקה (השליחה מושבתת) הוא מציג מיקרופון,
+  // ולחיצה עליו מפעילה את כפתור ההקלטה של גוגל (שמוסתר מתוך הכדור)
+  const SEND_BTN = '[jsname="GBTyxb"], button[aria-label="שליחת הודעה"], button[aria-label="Send message"]';
+  const MIC_BTN = '[jsname="EATp9"], button[aria-label="הוספת הודעה קולית"], button[aria-label^="Record"]';
+  function sendCircle(box) {
+    const pill = box.closest('.wa-compose');
+    const row = pill && pill.parentElement;
+    const send = row && row.querySelector(SEND_BTN);
+    if (!send) return;
+    let grp = send;
+    while (grp.parentElement && grp.parentElement !== row) grp = grp.parentElement;
+    if (!grp.classList.contains('wa-sendgrp')) {
+      addCls(grp, 'wa-sendgrp');
+      grp.addEventListener('click', (e) => {
+        if (stopped || grp.getAttribute('data-wa-empty') !== 'true') return;
+        const mic = row.querySelector(MIC_BTN);
+        if (!mic) return;
+        e.preventDefault(); e.stopPropagation();
+        mic.click();
+      }, true);
+    }
+    setAttr(grp, 'data-wa-empty', String(!!send.disabled || send.getAttribute('aria-disabled') === 'true'));
   }
   function composeOne(box) {
     let pill = null;
@@ -864,7 +919,8 @@
   function toggleDark() {
     try { localStorage.setItem(DARK_KEY, darkOn() ? '0' : '1'); } catch (e) {}
     applyDark();
-    schedule();
+    dkLast = 0;   // בלי השהיה - שהמעבר יראה מיד
+    tag();
   }
   const onStorage = (e) => { if (e.key === DARK_KEY) { applyDark(); schedule(); } };   // שינוי בחלון/לשונית אחרים
 
@@ -972,8 +1028,9 @@
   const dkSeen = new WeakSet();
   const DK_SKIP = '.wa-darkbtn, [role="menu"], [role="dialog"], [role="tooltip"], [role="listbox"], ' + SEL.toolbar;
   let dkLast = 0, dkTimer = 0;
+  // רץ גם במצב בהיר (הסימונים לא משפיעים שם), כך שהמעבר לכהה מיידי - רק החלפת תכונה ב-html
   function darkFix(cards) {
-    if (!cards.length || document.documentElement.getAttribute('data-wa-dark') !== 'true') return;
+    if (!cards.length) return;
     const now = Date.now();
     if (now - dkLast < 500) { if (!dkTimer) dkTimer = setTimeout(() => { dkTimer = 0; schedule(); }, 550); return; }
     dkLast = now;
@@ -1155,7 +1212,12 @@
       if (s.scroller) {
         addCls(s.scroller, 'wa-scroller');
         const main = s.scroller.closest('[role="main"]');
-        if (main) addCls(main, 'wa-main');
+        if (main && !main.classList.contains('wa-main')) {
+          addCls(main, 'wa-main');
+          // כשנפתחת חלונית שרשור, החלון הראשי נגלל הצידה (גוגל מחזיקה אלמנטים מוסתרים רחוק מחוץ למסך) - מחזירים
+          main.addEventListener('scroll', () => { if (!stopped && main.scrollLeft !== 0) main.scrollLeft = 0; });
+          if (main.scrollLeft !== 0) main.scrollLeft = 0;
+        }
         for (let n = b.parentElement; n && n !== s.scroller; n = n.parentElement) addCls(n, 'wa-clear');
       }
     }
@@ -1327,6 +1389,8 @@
   // כך שה-MutationObserver לא מתעורר כשהצד השני קורא בלי לענות. בדיקה קבועה כל 2 שניות (רק כשהלשונית גלויה).
   const readPoll = setInterval(() => { if (!document.hidden) schedule(); }, 2000);
   applyDark();
+  // הרקע הכהה מוכן מראש (כשהדפדפן פנוי), כדי שהמעבר לכהה לא יחכה לחישוב התמונה
+  (window.requestIdleCallback || ((f) => setTimeout(f, 1500)))(() => { if (!stopped) makeDarkBg(); });
   pickBackground();
   tag();
 
