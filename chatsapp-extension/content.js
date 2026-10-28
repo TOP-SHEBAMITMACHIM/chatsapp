@@ -224,7 +224,10 @@
   .wa-tk[data-hidden="true"] { display: none; }
   .wa-time:empty { display: none; }
   /* קבוצה: כמה קראו (עד שכולם קראו והוי וי כחולים) */
-  .wa-meta[data-wa-rc]::before { content: attr(data-wa-rc); order: -1; font-size: 11px; color: var(--wa-sub); margin-inline-end: -2px; }
+  .wa-rc { font-size: 11px; color: var(--wa-sub); margin-inline-end: -2px; }
+  .wa-rc:empty { display: none; }
+  /* מעבר עכבר על המספר / הוי וי מציג מי קרא (השורה עצמה לא תופסת לחיצות - רק הם) */
+  .wa-meta .wa-rc, .wa-meta .wa-tk:has(title) { pointer-events: auto; cursor: default; }
 
   /* ---- ציטוט (תשובה להודעה), כמו בוואטסאפ: תיבה כהה שקופה עם פס צבעוני בצד ימין, שם מודגש וטקסט אפור ---- */
   /* הציטוט וכל העוטפים שלו נמתחים לכל רוחב הבועה (גוגל משאירה להם רווחים/רוחב מקסימלי) */
@@ -542,11 +545,26 @@
     });
     return svg;
   }
+  // טקסט שמופיע במעבר עכבר על הוי וי (ב-SVG זה אלמנט <title>, לא תכונה)
+  function setTip(svg, text) {
+    let t = svg.querySelector('title');
+    if (!text) { if (t) t.remove(); return; }
+    if (!t) { t = document.createElementNS(SVGNS, 'title'); svg.insertBefore(t, svg.firstChild); }
+    if (t.textContent !== text) t.textContent = text;
+  }
+  const rcOf = (m) => {   // (שורות שנוצרו בגרסה קודמת - בלי האלמנט)
+    let rc = m.querySelector(':scope > .wa-rc');
+    if (!rc) { rc = document.createElement('span'); rc.className = 'wa-rc'; m.insertBefore(rc, m.firstChild); }
+    return rc;
+  };
   function makeMeta() {
     const m = document.createElement('span');
     m.className = 'wa-meta';
     const t = document.createElement('span');
     t.className = 'wa-time';
+    const rc = document.createElement('span');   // בקבוצה: כמה קראו
+    rc.className = 'wa-rc';
+    m.appendChild(rc);
     m.appendChild(makeTicks('wa-tk'));
     m.appendChild(t);
     return m;
@@ -1373,8 +1391,8 @@
     //    זיהוי אחיד בכל ריצה (איחוד של שתי שיטות) כדי שלא יהיה מעבר מצבים שגורם לריצוד.
     let readIdx = -1, seenCount = 0;
     // בקבוצה: עד איזו הודעה כל אחד קרא (האווטאר של כל אחד יושב אחרי ההודעה האחרונה שהוא קרא)
-    const readerPos = new Map();
-    const pid = (id) => (String(id).match(/d{6,}/) || [String(id)])[0];   // מזהה אחיד (ב-data-member-id יש לפעמים קידומת)
+    const readerPos = new Map(), readerName = new Map();
+    const pid = (id) => (String(id).match(/\d{6,}/) || [String(id)])[0];   // מזהה אחיד (ב-data-member-id יש לפעמים קידומת)
     const scroller = (state.find((s) => s.scroller) || {}).scroller || document.querySelector(SEL.scroller);
     const seenSlots = [];
     const anchors = new Set();
@@ -1403,6 +1421,12 @@
           if (state[i].el.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING) {
             readIdx = Math.max(readIdx, i);
             ids.forEach((id) => { const k = pid(id); if (k && !(MY_ID && k.includes(MY_ID))) readerPos.set(k, Math.max(readerPos.get(k) ?? -1, i)); });
+            // השם של מי שקרא: גוגל שומרת אותו על האווטאר (data-name), ואם לא - בטקסט החלופי של התמונה
+            [c, ...c.querySelectorAll('[data-member-id]')].forEach((a) => {
+              const k = pid(a.getAttribute('data-member-id') || ''), img = a.querySelector('img'), f = a.closest('[data-user-fullname]');
+              const name = a.getAttribute('data-name') || (img && img.alt) || (f && pid(f.getAttribute('data-user-id') || '') === k && f.getAttribute('data-user-fullname')) || '';
+              if (k && name && !readerName.has(k)) readerName.set(k, name.trim());
+            });
             break;
           }
         }
@@ -1452,7 +1476,15 @@
     // VV כחולים רק כשכולם קראו; עד אז אפורים, ולידם מספר הקוראים
     const members = new Set(readerPos.keys());
     state.forEach((s) => { if (s.own === false && s.sender) members.add(pid(s.sender)); });
-    const readersOf = (i) => { let n = 0; readerPos.forEach((p) => { if (p >= i) n++; }); return n; };
+    // שם שלא נמצא על האווטאר עצמו: מאווטארים אחרים של אותו אדם בדף (data-name) או משורת השולח (data-user-fullname)
+    const nameOf = (k) => {
+      if (readerName.has(k)) return readerName.get(k);
+      const a = [...document.querySelectorAll('[data-member-id*="' + k + '"][data-name], [data-user-id*="' + k + '"][data-user-fullname]')][0];
+      const n = a ? (a.getAttribute('data-name') || a.getAttribute('data-user-fullname') || '').trim() : '';
+      readerName.set(k, n || '?');
+      return n || '?';
+    };
+    const readersOf = (i) => [...readerPos].filter(([, p]) => p >= i).map(([k]) => nameOf(k));
     // 4) שעה + וי וי בתוך הבועה (בפינה השמאלית התחתונה), וציטוט
     state.forEach((s, i) => { try {
       if (!s.bubble || s.own === null) return;
@@ -1469,11 +1501,17 @@
       const group = inSpace(s.el) && seenCount > 0;
       if (s.own === true && ticksHere(s.el)) {
         delAttr(tk, 'data-hidden');
-        const n = group ? readersOf(i) : 0;
+        const who = group ? readersOf(i) : [], n = who.length;
         setAttr(tk, 'data-state', (group ? n > 0 && n >= members.size : i <= readIdx) ? 'read' : 'sent');
         if (group && n > 0 && n < members.size) setAttr(m, 'data-wa-rc', String(n)); else delAttr(m, 'data-wa-rc');
+        // מי קרא: מעבר עכבר על המספר או על הוי וי
+        const rc = rcOf(m);
+        rc.textContent = m.hasAttribute('data-wa-rc') ? String(n) : '';
+        const tip = n ? 'נקרא ע״י: ' + who.join(', ') : '';
+        if (rc.title !== tip) rc.title = tip;
+        setTip(tk, tip);
       }
-      else { setAttr(tk, 'data-hidden', 'true'); delAttr(m, 'data-wa-rc'); }   // הודעה של מישהו אחר, או הודעה שלי במרחב (לא קבוצה) - בלי וי וי
+      else { setAttr(tk, 'data-hidden', 'true'); delAttr(m, 'data-wa-rc'); rcOf(m).textContent = ''; setTip(tk, ''); }   // הודעה של מישהו אחר, או הודעה שלי במרחב (לא קבוצה) - בלי וי וי
       // מצב השורה: inline = על אותה שורה עם הטקסט (הודעה קצרה); below = שורה משלה בתחתית. וי וי בקצה הבועה מחייב below.
       const txt = (s.el.textContent || '').trim();
       const short = TICKS_LAYOUT !== 'bubble-start' && txt.length <= 28 && !/\n/.test(s.el.innerText || '')
