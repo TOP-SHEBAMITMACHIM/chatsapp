@@ -225,8 +225,13 @@
   /* קבוצה: כמה קראו (עד שכולם קראו והוי וי כחולים) */
   .wa-rc { font-size: 11px; color: var(--wa-sub); margin-inline-end: -2px; }
   .wa-rc:empty { display: none; }
-  /* מעבר עכבר על המספר / הוי וי מציג מי קרא (השורה עצמה לא תופסת לחיצות - רק הם) */
-  .wa-meta .wa-rc, .wa-meta .wa-tk:has(title) { pointer-events: auto; cursor: default; }
+  /* מעבר עכבר על המספר / הוי וי מציג מי קרא, בתווית כהה מעל השורה (השורה עצמה לא תופסת לחיצות - רק הם) */
+  .wa-meta[data-who] > .wa-rc, .wa-meta[data-who] > .wa-tk { pointer-events: auto; cursor: default; }
+  .wa-meta[data-who]:has(> .wa-rc:hover, > .wa-tk:hover)::after {
+    content: attr(data-who); position: absolute; bottom: calc(100% + 6px); inset-inline-start: -4px; z-index: 5;
+    padding: 5px 9px; border-radius: 7px; background: rgba(17,27,33,.92); color: #fff; font-size: 12.5px; line-height: 16px;
+    white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,.25); pointer-events: none;
+  }
 
   /* ---- ציטוט (תשובה להודעה), כמו בוואטסאפ: תיבה כהה שקופה עם פס צבעוני בצד ימין, שם מודגש וטקסט אפור ---- */
   /* הציטוט וכל העוטפים שלו נמתחים לכל רוחב הבועה (גוגל משאירה להם רווחים/רוחב מקסימלי) */
@@ -543,13 +548,6 @@
       svg.appendChild(p);
     });
     return svg;
-  }
-  // טקסט שמופיע במעבר עכבר על הוי וי (ב-SVG זה אלמנט <title>, לא תכונה)
-  function setTip(svg, text) {
-    let t = svg.querySelector('title');
-    if (!text) { if (t) t.remove(); return; }
-    if (!t) { t = document.createElementNS(SVGNS, 'title'); svg.insertBefore(t, svg.firstChild); }
-    if (t.textContent !== text) t.textContent = text;
   }
   const rcOf = (m) => {   // (שורות שנוצרו בגרסה קודמת - בלי האלמנט)
     let rc = m.querySelector(':scope > .wa-rc');
@@ -1506,11 +1504,9 @@
         // מי קרא: מעבר עכבר על המספר או על הוי וי
         const rc = rcOf(m);
         rc.textContent = m.hasAttribute('data-wa-rc') ? String(n) : '';
-        const tip = n ? 'נקרא ע״י: ' + who.join(', ') : '';
-        if (rc.title !== tip) rc.title = tip;
-        setTip(tk, tip);
+        if (n) setAttr(m, 'data-who', 'נקרא ע״י: ' + who.join(', ')); else delAttr(m, 'data-who');
       }
-      else { setAttr(tk, 'data-hidden', 'true'); delAttr(m, 'data-wa-rc'); rcOf(m).textContent = ''; setTip(tk, ''); }   // הודעה של מישהו אחר, או הודעה שלי במרחב (לא קבוצה) - בלי וי וי
+      else { setAttr(tk, 'data-hidden', 'true'); delAttr(m, 'data-wa-rc'); rcOf(m).textContent = ''; delAttr(m, 'data-who'); }   // הודעה של מישהו אחר, או הודעה שלי במרחב (לא קבוצה) - בלי וי וי
       // מצב השורה: inline = על אותה שורה עם הטקסט (הודעה קצרה); below = שורה משלה בתחתית. וי וי בקצה הבועה מחייב below.
       const txt = (s.el.textContent || '').trim();
       const short = TICKS_LAYOUT !== 'bubble-start' && txt.length <= 28 && !/\n/.test(s.el.innerText || '')
