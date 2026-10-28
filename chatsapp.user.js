@@ -228,7 +228,8 @@
   /* מעבר עכבר על המספר / הוי וי מציג מי קרא, בתווית כהה מעל השורה (השורה עצמה לא תופסת לחיצות - רק הם) */
   .wa-meta[data-who] > .wa-rc, .wa-meta[data-who] > .wa-tk { pointer-events: auto; cursor: default; }
   .wa-meta[data-who]:has(> .wa-rc:hover, > .wa-tk:hover)::after {
-    content: attr(data-who); position: absolute; bottom: calc(100% + 6px); inset-inline-start: -4px; z-index: 5;
+    /* נפתחת לכיוון פנים החלון (ההודעות שלי בקצה - בעברית משמאל), כדי שלא תיחתך */
+    content: attr(data-who); position: absolute; bottom: calc(100% + 6px); inset-inline-end: -4px; z-index: 5;
     padding: 5px 9px; border-radius: 7px; background: rgba(17,27,33,.92); color: #fff; font-size: 12.5px; line-height: 16px;
     white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,.25); pointer-events: none;
   }
@@ -403,7 +404,8 @@
   .wa-compose [role="textbox"][contenteditable="true"] { font-size: 15px !important; }
   /* האימוג'י עובר לתחילת הכדור (כמו בוואטסאפ) והטקסט זז כדי לפנות לו מקום. המבנה של גוגל לא משתנה - רק המיקום */
   .wa-compose [jsname="bXurze"] { position: static !important; }
-  .wa-compose [jsname="bXurze"] > div > :has([jsname="JlEEbd"]) { position: absolute !important; inset-inline-start: 10px; top: 50%; transform: translateY(-50%); z-index: 1; }
+  /* (בתחתית, בשורה של שאר האייקונים - כשמצרפים תמונה הכדור גדל, ובאמצע הוא היה יושב על התמונה) */
+  .wa-compose [jsname="bXurze"] > div > :has([jsname="JlEEbd"]) { position: absolute !important; inset-inline-start: 10px; bottom: 16px; z-index: 1; }
   .wa-compose > div:has([role="textbox"]) { padding-inline-start: 38px !important; }
   .wa-compose [jsname="bXurze"] > div > :has([jsname="EATp9"]) { display: none !important; }      /* המיקרופון עובר לעיגול הירוק */
   /* "+" (כלי Workspace): אייקון אפור בלי עיגול */
