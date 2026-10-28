@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ChatsApp – וואטסאפ לגוגל צ'אט
 // @namespace    chatsapp
-// @version      1.3.0
+// @version      1.3.1
 // @description  גוגל צ'אט בעיצוב וואטסאפ: בועות ירוקות/לבנות עם זנב, שעה ו-VV בתוך הבועה, ציטוטים, מסגרות לתמונות, רקע הוואטסאפ המקורי ומצב כהה
 // @homepageURL  https://github.com/TOP-SHEBAMITMACHIM/chatsapp
 // @downloadURL  https://raw.githubusercontent.com/TOP-SHEBAMITMACHIM/chatsapp/main/chatsapp.user.js
@@ -67,7 +67,7 @@
   }
 
   function chatsappMain() {
-  const VERSION = '1.3.0';
+  const VERSION = '1.3.1';
   const W = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
   if (W.waStop) { try { W.waStop(); } catch (e) {} }
 
@@ -372,7 +372,9 @@
   .wa-chathead svg, .wa-chathead i { color: var(--wa-head-text) !important; }
   .wa-chathead .wa-acc-l, .wa-chathead .wa-acc { box-shadow: inset 0 0 0 100vmax rgba(255,255,255,.16) !important; }
   .wa-chathead .wa-headbtn { background-color: rgba(255,255,255,.16) !important; }
-  .wa-chathead .wa-darkbtn { color: var(--wa-head-text); }
+  .wa-chathead .wa-darkbtn, .wa-darkbtn.wa-float { color: var(--wa-head-text); }
+  .wa-darkbtn.wa-float { position: fixed; z-index: 3; margin: 0; }
+  .wa-darkbtn.wa-float:hover { background: rgba(255,255,255,.12); }
   .wa-chathead .wa-darkbtn:hover { background: rgba(255,255,255,.12); }
   /* קופסת הנעיצה/השרשורים כשהיא יושבת על הפס הירוק */
   [jsname="Zpe2Q"].wa-onhead { background-color: rgba(255,255,255,.16) !important; }
@@ -1015,15 +1017,43 @@
   // כפתור ירח ליד כפתור שיחת הווידאו שבסרגל העליון של השיחה
   const MOON = 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z';
   function darkButton(card) {
-    if (!card || card.querySelector('.wa-darkbtn')) return;
-    // ליד שיחת הווידאו; במרחבים אין כזה - אז ליד "פגישה", ואם גם הוא לא קיים - ליד החיפוש בסרגל העליון
+    if (!card) return;
+    const old = card.querySelector('.wa-darkbtn');
+    if (old && !old.classList.contains('wa-float')) return;
+    // ליד כפתור שיחת הווידאו. במרחבים אין כזה - שם הירח "צף" צמוד לקופסת הנעיצה/השרשורים/הקבצים,
+    // בדיוק במקום שבו בצ'אט אישי יושב הווידאו (placeFloatMoon)
     const top = card.getBoundingClientRect().top + 72;
-    const btns = [...card.querySelectorAll('button[aria-label], [role="button"][aria-label]')]
-      .filter((b) => { const r = b.getBoundingClientRect(); return r.width && r.top < top; });
-    const vid = [/וידאו|video/i, /פגישה|meet/i, /חיפוש|search/i].reduce((f, re) => f || btns.find((b) => re.test(b.getAttribute('aria-label'))), null);
-    if (!vid) return;
-    let at = vid;
-    while (at.parentElement && at.parentElement !== card && at.parentElement.childElementCount === 1) at = at.parentElement;
+    const vid = [...card.querySelectorAll('button[aria-label], [role="button"][aria-label]')]
+      .find((b) => { const r = b.getBoundingClientRect(); return r.width && r.top < top && /וידאו|video/i.test(b.getAttribute('aria-label')); });
+    if (old) {
+      if (!vid) { placeFloatMoon(card, old); return; }
+      old.remove();   // עברנו ממרחב לצ'אט אישי - הירח חוזר לצד הווידאו
+    }
+    const btn = makeMoon();
+    if (vid) {
+      let at = vid;
+      while (at.parentElement && at.parentElement !== card && at.parentElement.childElementCount === 1) at = at.parentElement;
+      at.parentElement.insertBefore(btn, at);
+    } else {
+      // בתוך הפס העליון עצמו (בשכבה של החלון כולו הוא מוסתר מתחת לשכבה של הפס)
+      const head = card.querySelector('.wa-chathead') || card.querySelector('[jsname="uwkwCe"]');
+      if (!head) return;
+      btn.classList.add('wa-float');
+      head.appendChild(btn);
+      placeFloatMoon(card, btn);
+    }
+    applyDark();
+  }
+  function placeFloatMoon(card, btn) {
+    const cr = card.getBoundingClientRect();
+    const box = [...card.querySelectorAll('[jsname="Zpe2Q"]')].find((z) => { const r = z.getBoundingClientRect(); return r.width && r.top < cr.top + 72; });
+    if (!box) { btn.style.display = 'none'; return; }
+    const r = box.getBoundingClientRect();   // (position: fixed - קואורדינטות של החלון, בלי לגעת במבנה של גוגל)
+    const x = Math.round(isRtl ? r.right + 4 : r.left - 44), y = Math.round(r.top + (r.height - 40) / 2);
+    const css = 'left:' + x + 'px;top:' + y + 'px;';
+    if (btn.getAttribute('style') !== css) btn.setAttribute('style', css);
+  }
+  function makeMoon() {
     const btn = document.createElement('div');
     btn.className = 'wa-darkbtn';
     btn.setAttribute('role', 'button');
@@ -1034,8 +1064,7 @@
     svg.appendChild(path); btn.appendChild(svg);
     btn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); toggleDark(); });
     btn.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleDark(); } });
-    at.parentElement.insertBefore(btn, at);
-    applyDark();
+    return btn;
   }
 
   // הפס העליון של השיחה: המשטח בראש החלון, מעל אזור ההודעות, ברוחב של אזור ההודעות (לא של חלונית השרשור)
