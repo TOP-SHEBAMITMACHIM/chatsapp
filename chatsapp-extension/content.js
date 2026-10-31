@@ -143,6 +143,9 @@
   // שעון: כפתור "הודעה שנמחקת" בתיבת הכתיבה, וסימון על הודעה שממתינה למחיקה
   const CLOCK = 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16zm-1 3v6.4l5 3 1-1.7-4-2.4V7h-2z';
   const CLOCK_MASK = 'url("data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="' + CLOCK + '"/></svg>') + '")';
+  // "אחרי צפייה": עיגול עם 1, כמו "צפייה חד פעמית" של וואטסאפ
+  const ONCE = 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16zm.8 3h-1.5L8.9 8.6v1.7l2.2-1.4V17h1.7z';
+  const ONCE_MASK = 'url("data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="' + ONCE + '"/></svg>') + '")';
   const css = `
   :root {
     --wa-header:#008069; --wa-header-text:#fff;
@@ -467,8 +470,11 @@
   html[data-wa-dark="true"] .wa-ephmenu { background: #233138; color: #e9edef; }
   html[data-wa-dark="true"] .wa-ephmenu > div:not(.wa-ephhead):hover { background: #182229; }
   .wa-bubble[data-wa-ephem] > .wa-meta::before, .wa-mediabox[data-wa-ephem] > .wa-mmeta::before {
-    content: ""; flex: none; order: -2; width: 12px; height: 12px; background: currentColor; -webkit-mask: ${CLOCK_MASK} center / contain no-repeat;
+    content: ""; flex: none; order: -2; width: 14px; height: 14px; margin-inline-end: 1px; background: currentColor; -webkit-mask: ${CLOCK_MASK} center / contain no-repeat;
   }
+  .wa-bubble[data-wa-ephem="view"] > .wa-meta::before, .wa-mediabox[data-wa-ephem="view"] > .wa-mmeta::before { -webkit-mask-image: ${ONCE_MASK}; }
+  /* במצב וואטסאפ ה-VV עובר לסוף השורה - השעון עובר איתו, צמוד אליו */
+  html[data-wa-ticks="whatsapp"] .wa-bubble[data-wa-ephem] > .wa-meta::before { order: 1; }
 
   /* כפתור הירח בסרגל העליון של השיחה */
   .wa-darkbtn {
