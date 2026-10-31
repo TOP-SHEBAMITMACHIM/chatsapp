@@ -1432,6 +1432,9 @@
         if (h.closest(SEL.receipts)) return;                           // כבר מכוסה דרך הרשימה שלו
         if (h.closest(SEL.message)) return;                            // בתוך תוכן הודעה (למשל האווטאר של כותב בציטוט) - לא "נקרא"
         if (h.closest(NOT_RECEIPT)) return;                            // תגובת אימוג'י / החלון שקופץ במעבר עליה (מי הגיב) - לא "נקרא"
+        // האווטאר של "נקרא" מסומן אצל גוגל ב-data-hide-hovercard ובלי שם. אווטארים אחרים בגודל דומה - למשל ברשימת
+        // "מי הגיב" שקופצת על תגובת אימוג'י (role=list, עם data-name) - הם לא "נקרא", ובלי זה נספרו כקוראים
+        if (!h.hasAttribute('data-hide-hovercard') && (h.hasAttribute('data-name') || h.closest('[role="list"], [role="listitem"]'))) return;
         if (h.textContent.trim()) return;                              // יש טקסט = כפתור שם, לא אווטאר
         const w = h.offsetWidth, ht = h.offsetHeight;
         if (h.classList.contains('wa-seen') || (w > 0 && w <= 28 && ht <= 28)) cand.add(h);   // האווטאר הגדול של השולח - לא נוגעים
