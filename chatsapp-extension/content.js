@@ -64,7 +64,19 @@
     mo.observe(document.body || document.documentElement, { subtree: true, childList: true });
     document.addEventListener('click', iconsFix, true);
     iconsFix();
-    W.waStop = () => { mo.disconnect(); document.removeEventListener('click', iconsFix, true); st.remove(); iconsCleanup(); delete W.waStop; };
+    // הצ'אט שבתוך Gmail לא מקבל את המזהה של החשבון בנתוני הדף שלו, ובלי זה הודעה ששלחתי במרחב נשארת לבנה.
+    // Gmail כן מחזיקה אותו (w2btAe) - עונים לבקשה של ה-iframe
+    let myId = null;
+    for (const sc of document.scripts) {
+      const m = sc.textContent && sc.textContent.match(/"w2btAe"\s*:\s*"%\.@\.\\"(\d{8,})\\"/);
+      if (m) { myId = m[1]; break; }
+    }
+    const onAsk = (e) => {
+      if (myId && e.origin === 'https://chat.google.com' && e.data && e.data.chatsapp === 'need-id' && e.source)
+        e.source.postMessage({ chatsapp: 'my-id', id: myId }, 'https://chat.google.com');
+    };
+    window.addEventListener('message', onAsk);
+    W.waStop = () => { mo.disconnect(); document.removeEventListener('click', iconsFix, true); window.removeEventListener('message', onAsk); st.remove(); iconsCleanup(); delete W.waStop; };
   }
 
   function chatsappMain() {
@@ -504,7 +516,7 @@
 
   /* ================= זיהוי ================= */
   // המזהה של החשבון שלי (נמצא בנתוני הדף)
-  const MY_ID = (() => {
+  let MY_ID = (() => {   // (בצ'אט שבתוך Gmail הוא לא שם - מגיע מ-Gmail, ראו onBridge)
     for (const sc of document.scripts) {
       const m = sc.textContent && sc.textContent.match(/"W3Yyqf"\s*:\s*"(\d{8,})"/);
       if (m) return m[1];
@@ -1144,6 +1156,8 @@
   // בגרסת התוסף: החלון הקופץ משנה מצב כהה/בהיר דרך bridge.js, שמעביר הודעה לדף (בסקריפט של Tampermonkey אין גשר - ולא קורה כלום)
   const onBridge = (e) => {
     const d = e.data;
+    // בתוך Gmail: המזהה שלי מגיע מהדף של Gmail (ראו gmailMain)
+    if (d && d.chatsapp === 'my-id' && !MY_ID && e.origin === 'https://mail.google.com' && /^\d{8,}$/.test(d.id)) { MY_ID = d.id; schedule(); return; }
     if (e.source !== window || !d || d.chatsapp !== 'set-dark') return;
     if (!!d.on !== darkOn()) setDark(!!d.on, false);
   };
@@ -1846,6 +1860,9 @@
   window.addEventListener('storage', onStorage);
   window.addEventListener('message', onBridge);
   window.postMessage({ chatsapp: 'hello', on: darkOn() }, '*');
+  if (!MY_ID && window.top !== window) {   // בתוך Gmail: מבקשים את המזהה מהדף שמעל (גם שוב אחרי רגע - אולי Gmail עוד נטענת)
+    [0, 2000, 6000].forEach((ms) => setTimeout(() => { if (!MY_ID && !stopped) window.top.postMessage({ chatsapp: 'need-id' }, 'https://mail.google.com'); }, ms));
+  }
   // "נקרא": גוגל מחזיקה אווטאר מוסתר ליד כל הודעה ורק מחליפה איזה מהם גלוי (שינוי עיצוב, לא הוספת אלמנט),
   // כך שה-MutationObserver לא מתעורר כשהצד השני קורא בלי לענות. בדיקה קבועה כל 2 שניות (רק כשהלשונית גלויה).
   // רק כשיש הודעה שלי שעוד לא נקראה (VV אפורים) - אחרת אין מה לבדוק
