@@ -19,12 +19,13 @@
 
   /* ================= ירוק בצד (משותף לצ'אט ול-Gmail) ================= */
   // השורה הנבחרת ברשימת הצ'אטים ובפס של Gmail (דואר/צ'אט/Meet): ירוק בהיר במקום התכלת של גוגל. שמות מרחבים בירוק.
-  // (האייקונים עצמם נשארים בצבעים המקוריים)
-  const ICON_GREEN = '#008069', ICON_SEL = '#d9fdd3', ICON_SEL_TEXT = '#00684a';
+  // (האייקונים עצמם נשארים בצבעים המקוריים. הירוק של שם מרחב שומר על הבהירות והשקיפות שגוגל נותנת לו -
+  // במרחב בלי התראות זה הסימן היחיד שיש בו הודעות חדשות)
+  const ICON_SEL = '#d9fdd3', ICON_SEL_TEXT = '#00684a';
   const ICON_CSS = `
   .wa-navsel { box-shadow: inset 0 0 0 100vmax ${ICON_SEL} !important; }
   .wa-navsel, .wa-navsel *, .wa-navtxt { -webkit-text-fill-color: ${ICON_SEL_TEXT}; }
-  [data-group-id^="space/"][role="listitem"] [jsname="dfY7oc"] { -webkit-text-fill-color: ${ICON_GREEN}; }
+  [data-group-id^="space/"][role="listitem"] [jsname="dfY7oc"] { -webkit-text-fill-color: oklch(from currentColor calc(l * .9 + .06) .11 165 / alpha); }
   `;
   // הצבע עצמו לא נדרס (רק צל פנימי ו-text-fill), כך שאפשר להמשיך לקרוא מה גוגל מסמנת כנבחר
   const rgbOf = (c) => { const m = c && c.match(/rgba?\(([^)]+)\)/); if (!m) return null; const p = m[1].split(/[ ,\/]+/).filter(Boolean).map(Number); return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 }; };
