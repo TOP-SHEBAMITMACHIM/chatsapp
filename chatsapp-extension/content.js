@@ -1,8 +1,8 @@
-// ChatsApp 1.4.0 - נבנה אוטומטית מ-chatsapp.user.js (לא לערוך כאן)
+// ChatsApp 1.4.1 - נבנה אוטומטית מ-chatsapp.user.js (לא לערוך כאן)
 // ==UserScript==
 // @name         ChatsApp – וואטסאפ לגוגל צ'אט
 // @namespace    chatsapp
-// @version      1.4.0
+// @version      1.4.1
 // @description  גוגל צ'אט בעיצוב וואטסאפ: בועות ירוקות/לבנות עם זנב, שעה ו-VV בתוך הבועה, ציטוטים, מסגרות לתמונות, רקע הוואטסאפ המקורי ומצב כהה
 // @homepageURL  https://github.com/TOP-SHEBAMITMACHIM/chatsapp
 // @downloadURL  https://raw.githubusercontent.com/TOP-SHEBAMITMACHIM/chatsapp/main/chatsapp.user.js
@@ -81,7 +81,7 @@
   }
 
   function chatsappMain() {
-  const VERSION = '1.4.0';
+  const VERSION = '1.4.1';
   const W = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
   if (W.waStop) { try { W.waStop(); } catch (e) {} }
 
@@ -153,12 +153,6 @@
   'border:0 !important;border-radius:0 !important;box-shadow:none !important;background-image:none !important;transition:none !important;pointer-events:none;}';
 
   /* ================= CSS ================= */
-  // שעון: כפתור "הודעה שנמחקת" בתיבת הכתיבה, וסימון על הודעה שממתינה למחיקה
-  const CLOCK = 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16zm-1 3v6.4l5 3 1-1.7-4-2.4V7h-2z';
-  const CLOCK_MASK = 'url("data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="' + CLOCK + '"/></svg>') + '")';
-  // "אחרי צפייה": עיגול עם 1, כמו "צפייה חד פעמית" של וואטסאפ
-  const ONCE = 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16zm.8 3h-1.5L8.9 8.6v1.7l2.2-1.4V17h1.7z';
-  const ONCE_MASK = 'url("data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="' + ONCE + '"/></svg>') + '")';
   const css = `
   :root {
     --wa-header:#008069; --wa-header-text:#fff;
@@ -467,27 +461,6 @@
   .wa-sendgrp[data-wa-empty="true"] [jsname="ssKfee"] { display: none !important; }
   .wa-sendgrp [jsname="ssKfee"] { background: transparent !important; box-shadow: none !important; color: var(--wa-icon) !important; }
   .wa-sendgrp [jsname="ssKfee"] *::before, .wa-sendgrp [jsname="ssKfee"]::before { opacity: 0 !important; }
-
-  /* ---- הודעה שנמחקת: כפתור השעון בתיבת הכתיבה, התפריט שלו, והסימון על הודעה שממתינה למחיקה ---- */
-  .wa-ephbtn { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; color: var(--wa-icon); }
-  .wa-ephbtn:hover { background: rgba(0,0,0,.06); }
-  .wa-ephbtn::before { content: ""; width: 20px; height: 20px; background: currentColor; -webkit-mask: ${CLOCK_MASK} center / contain no-repeat; }
-  .wa-ephbtn[data-on="true"] { color: var(--wa-acc); background: rgba(0,168,132,.14); }
-  .wa-ephmenu { position: fixed; z-index: 9999; width: 190px; padding: 6px 0; border-radius: 10px; background: #fff; color: #111b21;
-    box-shadow: 0 4px 18px rgba(0,0,0,.22); font: 14px/1.3 inherit; direction: rtl; }
-  .wa-ephmenu > div { padding: 8px 14px; cursor: pointer; }
-  .wa-ephmenu > .wa-ephhead { color: #667781; font-size: 12.5px; cursor: default; padding-bottom: 4px; }
-  .wa-ephmenu > div:not(.wa-ephhead):hover { background: #f0f2f5; }
-  .wa-ephmenu > [data-sel="true"] { color: #008069; font-weight: 600; }
-  .wa-ephmenu > [data-disabled="true"] { color: #b0b6b9; cursor: default; }
-  html[data-wa-dark="true"] .wa-ephmenu { background: #233138; color: #e9edef; }
-  html[data-wa-dark="true"] .wa-ephmenu > div:not(.wa-ephhead):hover { background: #182229; }
-  .wa-bubble[data-wa-ephem] > .wa-meta::before, .wa-mediabox[data-wa-ephem] > .wa-mmeta::before {
-    content: ""; flex: none; order: -2; width: 14px; height: 14px; margin-inline-end: 1px; background: currentColor; -webkit-mask: ${CLOCK_MASK} center / contain no-repeat;
-  }
-  .wa-bubble[data-wa-ephem="view"] > .wa-meta::before, .wa-mediabox[data-wa-ephem="view"] > .wa-mmeta::before { -webkit-mask-image: ${ONCE_MASK}; }
-  /* במצב וואטסאפ ה-VV עובר לסוף השורה - השעון עובר איתו, צמוד אליו */
-  html[data-wa-ticks="whatsapp"] .wa-bubble[data-wa-ephem] > .wa-meta::before { order: 1; }
 
   /* כפתור הירח בסרגל העליון של השיחה */
   .wa-darkbtn {
@@ -963,136 +936,7 @@
     document.querySelectorAll(SEL.composer).forEach((box) => {
       if (!box.closest('.wa-compose')) composeOne(box);
       sendCircle(box);
-      const pill = box.closest('.wa-compose');
-      if (pill) ephButton(pill);
     });
-  }
-
-  /* ================= הודעה שנמחקת (אחרי זמן / אחרי צפייה) ================= */
-  // כפתור שעון בתיבת הכתיבה: בוחרים מצב, וההודעה (או התמונה) הבאה שנשלחת תימחק אחרי הזמן שנבחר, או אחרי שהצד השני
-  // ראה אותה (VV כחולים). המחיקה נעשית מהדפדפן שלי בדיוק כמו מחיקה ידנית (פעולות נוספות ← מחיקה ← אישור), ולכן רק
-  // כשהשיחה פתוחה. הרשימה נשמרת ב-localStorage: אם הדפדפן היה סגור בזמן, המחיקה תקרה בפעם הבאה שהשיחה תיפתח.
-  const EPH_KEY = 'chatsapp-ephemeral';
-  const EPH_MODES = [['off', 'בלי מחיקה'], ['60', 'אחרי דקה'], ['3600', 'אחרי שעה'], ['86400', 'אחרי 24 שעות'], ['view', 'אחרי צפייה']];
-  let ephArmed = null;    // המצב שנבחר להודעה הבאה
-  let ephWatch = null;    // אחרי שליחה במצב "נמחקת": מחכים שההודעה החדשה שלי תופיע {mode, at, known}
-  let ephBusy = false;
-  const ephLoad = () => { try { return JSON.parse(localStorage.getItem(EPH_KEY) || '[]'); } catch (e) { return []; } };
-  const ephSave = (l) => { try { localStorage.setItem(EPH_KEY, JSON.stringify(l)); } catch (e) {} };
-  const ephLabel = (k) => (EPH_MODES.find((m) => m[0] === k) || [])[1] || '';
-
-  function ephButton(pill) {
-    let b = pill.querySelector('.wa-ephbtn');
-    if (!b) {
-      const up = pill.querySelector('[jsname="NBieKd"]');   // ליד כפתור העלאת הקובץ
-      if (!up || !up.parentElement) return;
-      b = document.createElement('div');
-      b.className = 'wa-ephbtn';
-      b.setAttribute('role', 'button');
-      b.tabIndex = 0;
-      b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); ephMenu(b); });
-      b.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ephMenu(b); } });
-      up.parentElement.insertBefore(b, up);
-    }
-    setAttr(b, 'data-on', String(!!ephArmed));
-    const t = ephArmed ? 'ההודעה הבאה תימחק ' + ephLabel(ephArmed) : 'הודעה שנמחקת';
-    if (b.title !== t) { b.title = t; b.setAttribute('aria-label', t); }
-  }
-  function ephMenu(btn) {
-    document.querySelectorAll('.wa-ephmenu').forEach((x) => x.remove());
-    const m = document.createElement('div');
-    m.className = 'wa-ephmenu';
-    const head = document.createElement('div');
-    head.className = 'wa-ephhead';
-    head.textContent = 'ההודעה הבאה תימחק:';
-    m.appendChild(head);
-    // "אחרי צפייה" צריך אישור קריאה - במרחב (לא קבוצה) אין כזה
-    const noReceipts = inSpace(btn) && !(tag.last && tag.last.seenCount > 0);
-    EPH_MODES.forEach(([k, label]) => {
-      const it = document.createElement('div');
-      it.textContent = label;
-      if ((ephArmed || 'off') === k) it.setAttribute('data-sel', 'true');
-      if (k === 'view' && noReceipts) { it.setAttribute('data-disabled', 'true'); it.title = 'במרחב אין אישור קריאה'; }
-      it.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (it.hasAttribute('data-disabled')) return;
-        ephArmed = k === 'off' ? null : k;
-        m.remove();
-        document.querySelectorAll('.wa-ephbtn').forEach((b) => ephButton(b.closest('.wa-compose')));
-      });
-      m.appendChild(it);
-    });
-    document.body.appendChild(m);
-    const r = btn.getBoundingClientRect();
-    m.style.left = Math.max(8, r.left + r.width / 2 - m.offsetWidth / 2) + 'px';
-    m.style.top = Math.max(8, r.top - m.offsetHeight - 8) + 'px';
-    const close = (ev) => { if (!m.contains(ev.target)) { m.remove(); document.removeEventListener('click', close, true); } };
-    setTimeout(() => document.addEventListener('click', close, true), 0);
-  }
-
-  // נקרא בכל סבב: מזהה את ההודעה ששלחתי במצב "נמחקת", מסמן ⏱ על הודעות שממתינות, ומוחק כשהגיע הזמן
-  function ephTick() {
-    if (ephWatch) {
-      if (Date.now() - ephWatch.at > 20000) ephWatch = null;
-      else {
-        const g = [...document.querySelectorAll('[role="group"][data-id]')].find((x) => MY_ID && x.getAttribute('data-user-id') === MY_ID
-          && !ephWatch.known.has(x.getAttribute('data-id')) && x.querySelector('div[jsname="bgckF"], img, video'));
-        if (g) {
-          const l = ephLoad();
-          l.push({ id: g.getAttribute('data-id'), mode: ephWatch.mode, at: Date.now(), due: ephWatch.mode === 'view' ? 0 : Date.now() + Number(ephWatch.mode) * 1000 });
-          ephSave(l);
-          ephWatch = null;
-        }
-      }
-    }
-    const list = ephLoad();
-    if (!list.length) return;
-    const now = Date.now();
-    let dirty = false;
-    for (const it of list) {
-      const g = document.querySelector('[role="group"][data-id="' + CSS.escape(it.id) + '"]');
-      if (!g) { if (now - it.at > 7 * 86400000) { it.dead = true; dirty = true; } continue; }   // לא בשיחה הפתוחה
-      if (!g.querySelector('div[jsname="bgckF"], img, video')) { it.dead = true; dirty = true; continue; }   // כבר נמחקה
-      g.querySelectorAll('.wa-bubble, .wa-mediabox').forEach((b) => setAttr(b, 'data-wa-ephem', it.mode));
-      const due = it.mode === 'view' ? !!g.querySelector('.wa-tk[data-state="read"]:not([data-hidden])') : now >= it.due;
-      if (due && !ephBusy) { ephDelete(g, it.id); break; }
-    }
-    if (dirty) ephSave(list.filter((x) => !x.dead));
-  }
-  const waitFor = (f, ms) => new Promise((res) => {
-    const t0 = Date.now();
-    const step = () => { const v = f(); if (v || Date.now() - t0 > ms) res(v || null); else setTimeout(step, 100); };
-    step();
-  });
-  async function ephDelete(g, id) {
-    ephBusy = true;
-    const drop = () => ephSave(ephLoad().filter((x) => x.id !== id));
-    try {
-      // סרגל הפעולות של גוגל נבנה רק במעבר עכבר - מדמים מעבר עכבר על ההודעה
-      const t = g.querySelector('div[jsname="bgckF"], img, video') || g, r = t.getBoundingClientRect();
-      const o = { bubbles: true, cancelable: true, clientX: r.x + 5, clientY: r.y + 5, view: window };
-      for (const el of [g, t]) ['pointerover', 'pointerenter', 'mouseover', 'mouseenter', 'pointermove', 'mousemove']
-        .forEach((ty) => el.dispatchEvent(ty.startsWith('pointer') ? new PointerEvent(ty, o) : new MouseEvent(ty, o)));
-      const more = await waitFor(() => g.querySelector('[jsname="ktt6Rc"]'), 3000);
-      if (!more) throw new Error('no more-actions button');
-      more.click();
-      const del = await waitFor(() => [...document.querySelectorAll('[role="menuitem"]')]
-        .find((e) => e.getBoundingClientRect().width && /^(מחיקה|Delete)$/i.test((e.textContent || '').trim())), 3000);
-      if (!del) { document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); throw new Error('no delete item'); }
-      del.click();
-      const ok = await waitFor(() => [...document.querySelectorAll('[role="dialog"] button[data-mdc-dialog-action="ok"]')]
-        .find((b) => b.getBoundingClientRect().width), 3000);
-      if (!ok) throw new Error('no confirm dialog');
-      ok.click();
-      drop();
-    } catch (e) {
-      tag.error = 'ephemeral: ' + e.message;
-      const l = ephLoad(), x = l.find((y) => y.id === id);
-      if (x) { x.tries = (x.tries || 0) + 1; ephSave(x.tries > 5 ? l.filter((y) => y.id !== id) : l); }
-    }
-    // סוף המעבר המדומה - שסרגל הפעולות לא יישאר פתוח
-    ['pointerout', 'pointerleave', 'mouseout', 'mouseleave'].forEach((ty) => g.dispatchEvent(ty.startsWith('pointer') ? new PointerEvent(ty, { bubbles: true }) : new MouseEvent(ty, { bubbles: true })));
-    ephBusy = false;
   }
   // העיגול הירוק של וואטסאפ: כפתור השליחה של גוגל. כשהתיבה ריקה (השליחה מושבתת) הוא מציג מיקרופון,
   // ולחיצה עליו מפעילה את כפתור ההקלטה של גוגל (שמוסתר מתוך הכדור)
@@ -1751,7 +1595,6 @@
     lap('icons');
     tag.last = { total: msgs.length, seenCount, readUpTo: readIdx, state, seenSlots: seenSlots.length };
     traceSend(state);
-    try { ephTick(); } catch (e) { tag.error = 'ephemeral: ' + e; }
   }
 
   /* ================= הפעלה ================= */
@@ -1840,11 +1683,6 @@
     const txt = norm(box && box.innerText);
     if (txt) { sentTexts.push({ txt, at: lastSend }); if (sentTexts.length > 5) sentTexts.shift(); }
     sendTrace = { at: lastSend, len: txt.length, events: [] };   // לאבחון (waDebug): מה קרה להודעה ב-8 השניות אחרי השליחה
-    if (ephArmed) {   // ההודעה הזו נשלחה במצב "נמחקת" - מחכים שתופיע כדי לרשום אותה (המצב חד פעמי)
-      ephWatch = { mode: ephArmed, at: lastSend, known: new Set([...document.querySelectorAll('[role="group"][data-id]')].map((x) => x.getAttribute('data-id'))) };
-      ephArmed = null;
-      document.querySelectorAll('.wa-ephbtn').forEach((b) => ephButton(b.closest('.wa-compose')));
-    }
     [30, 150, 400, 900, 2000, 3500, 6000, 8000, 12000].forEach((ms) => setTimeout(tag, ms));   // (שרת שמאשר לאט)
   }
   document.addEventListener('keydown', onSend, true);
@@ -1870,8 +1708,6 @@
   const readPoll = setInterval(() => {
     if (!document.hidden && document.querySelector('.wa-tk[data-state="sent"]:not([data-hidden])')) schedule();
   }, 2500);
-  // הודעות שנמחקות: הזמן עובר גם כשאין שום שינוי בדף - בודקים כל 5 שניות (רק כשיש כאלה ברשימה)
-  const ephPoll = setInterval(() => { if (ephWatch || ephLoad().length) { try { ephTick(); } catch (e) {} } }, 5000);
   applyDark();
   // הרקע הכהה מוכן מראש (כשהדפדפן פנוי), כדי שהמעבר לכהה לא יחכה לחישוב התמונה
   (window.requestIdleCallback || ((f) => setTimeout(f, 1500)))(() => { if (!stopped) makeDarkBg(); });
@@ -1996,8 +1832,7 @@
     clearTimeout(dkTimer);
     clearTimeout(accTimer);
     iconsCleanup();
-    document.querySelectorAll('.wa-darkbtn, .wa-ephbtn, .wa-ephmenu').forEach((x) => x.remove());
-    clearInterval(ephPoll);
+    document.querySelectorAll('.wa-darkbtn').forEach((x) => x.remove());
     document.documentElement.style.removeProperty('--wa-img-dark');
     document.removeEventListener('keydown', onSend, true);
     document.removeEventListener('input', onInput, true);
