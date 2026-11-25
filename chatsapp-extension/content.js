@@ -1,8 +1,8 @@
-// ChatsApp 1.4.1 - נבנה אוטומטית מ-chatsapp.user.js (לא לערוך כאן)
+// ChatsApp 1.4.2 - נבנה אוטומטית מ-chatsapp.user.js (לא לערוך כאן)
 // ==UserScript==
 // @name         ChatsApp – וואטסאפ לגוגל צ'אט
 // @namespace    chatsapp
-// @version      1.4.1
+// @version      1.4.2
 // @description  גוגל צ'אט בעיצוב וואטסאפ: בועות ירוקות/לבנות עם זנב, שעה ו-VV בתוך הבועה, ציטוטים, מסגרות לתמונות, רקע הוואטסאפ המקורי ומצב כהה
 // @homepageURL  https://github.com/TOP-SHEBAMITMACHIM/chatsapp
 // @downloadURL  https://raw.githubusercontent.com/TOP-SHEBAMITMACHIM/chatsapp/main/chatsapp.user.js
@@ -18,14 +18,12 @@
   'use strict';
 
   /* ================= ירוק בצד (משותף לצ'אט ול-Gmail) ================= */
-  // השורה הנבחרת ברשימת הצ'אטים ובפס של Gmail (דואר/צ'אט/Meet): ירוק בהיר במקום התכלת של גוגל. שמות מרחבים בירוק.
-  // (האייקונים עצמם נשארים בצבעים המקוריים. הירוק של שם מרחב שומר על הבהירות והשקיפות שגוגל נותנת לו -
-  // במרחב בלי התראות זה הסימן היחיד שיש בו הודעות חדשות)
+  // השורה הנבחרת ברשימת הצ'אטים ובפס של Gmail (דואר/צ'אט/Meet): ירוק בהיר במקום התכלת של גוגל.
+  // (האייקונים עצמם נשארים בצבעים המקוריים, וכך גם שמות המרחבים: לפי הצבע שלהם רואים אם יש הודעות חדשות)
   const ICON_SEL = '#d9fdd3', ICON_SEL_TEXT = '#00684a';
   const ICON_CSS = `
   .wa-navsel { box-shadow: inset 0 0 0 100vmax ${ICON_SEL} !important; }
   .wa-navsel, .wa-navsel *, .wa-navtxt { -webkit-text-fill-color: ${ICON_SEL_TEXT}; }
-  [data-group-id^="space/"][role="listitem"] [jsname="dfY7oc"] { -webkit-text-fill-color: oklch(from currentColor calc(l * .9 + .06) .11 165 / alpha); }
   `;
   // הצבע עצמו לא נדרס (רק צל פנימי ו-text-fill), כך שאפשר להמשיך לקרוא מה גוגל מסמנת כנבחר
   const rgbOf = (c) => { const m = c && c.match(/rgba?\(([^)]+)\)/); if (!m) return null; const p = m[1].split(/[ ,\/]+/).filter(Boolean).map(Number); return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 }; };
@@ -81,7 +79,7 @@
   }
 
   function chatsappMain() {
-  const VERSION = '1.4.1';
+  const VERSION = '1.4.2';
   const W = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
   if (W.waStop) { try { W.waStop(); } catch (e) {} }
 
